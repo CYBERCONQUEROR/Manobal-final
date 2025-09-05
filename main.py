@@ -48,6 +48,10 @@ def chat():
 
     response = chatbot_instance.get_response(user_input)
     return jsonify({'response': response})
+    
+@app.route("/")
+def home():
+    return "✅ Manobal API is running! Try POST /chat with JSON { 'message': 'hi' }"
 
 
 @app.route('/confirm_booking', methods=['POST'])
