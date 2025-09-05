@@ -111,7 +111,7 @@ const ArticleReader: React.FC<ArticleReaderProps> = ({ articleUrl, onClose }) =>
       setLoadingArticle(true);
       setArticleError(null);
       try {
-        const response = await fetch('http://localhost:5000/fetch_article_metadata', {
+        const response = await fetch('https://manobal-finall.onrender.com/fetch_article_metadata', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ article_url: articleUrl }),

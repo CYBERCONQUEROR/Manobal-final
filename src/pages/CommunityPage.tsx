@@ -252,7 +252,7 @@ export default function CommunityPage() {
         setYoutubeMetadata(null); // Clear previous metadata on new fetch
 
         try {
-          const response = await fetch('http://localhost:5000/fetch_youtube_metadata', {
+          const response = await fetch('https://manobal-finall.onrender.com/fetch_youtube_metadata', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ youtube_url: newPost.resourceURL }),
@@ -303,7 +303,7 @@ export default function CommunityPage() {
         setPdfMetadata(null); // Clear previous metadata on new fetch
 
         try {
-          const response = await fetch('http://localhost:5000/fetch_pdf_metadata', {
+          const response = await fetch('https://manobal-finall.onrender.com/fetch_pdf_metadata', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pdf_url: newPost.resourceURL }),
@@ -352,7 +352,7 @@ export default function CommunityPage() {
         setArticleMetadata(null); // Clear previous metadata on new fetch
 
         try {
-          const response = await fetch('http://localhost:5000/fetch_article_metadata', {
+          const response = await fetch('https://manobal-finall.onrender.com/fetch_article_metadata', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ article_url: newPost.resourceURL }),
@@ -545,7 +545,7 @@ export default function CommunityPage() {
     setCurrentCitations(null);
 
     try {
-      const response = await fetch('http://localhost:5000/generate_citation', {
+      const response = await fetch('https://manobal-finall.onrender.com/generate_citation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -583,7 +583,7 @@ export default function CommunityPage() {
     setPdfSearchResults(null);
 
     try {
-      const response = await fetch('http://localhost:5000/search_pdf_text', {
+      const response = await fetch('https://manobal-finall.onrender.com/search_pdf_text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -747,7 +747,7 @@ export default function CommunityPage() {
     setArticleContentError(null);
 
     try {
-      const response = await fetch('http://localhost:5000/fetch_article_content', {
+      const response = await fetch('https://manobal-finall.onrender.com/fetch_article_content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ article_url: articleUrl }),
@@ -830,7 +830,7 @@ export default function CommunityPage() {
       setIsFetchingRecommendations(true);
       setRecommendationError(null);
       try {
-        const response = await fetch('http://localhost:5000/recommend_funny_videos', {
+        const response = await fetch('https://manobal-finall.onrender.com/recommend_funny_videos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: user.id }),

@@ -346,7 +346,7 @@ export default function BookingPage() {
     };
 
     try {
-      const response = await fetch('http://localhost:5000/confirm_booking', {
+      const response = await fetch('https://manobal-finall.onrender.com/confirm_booking', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

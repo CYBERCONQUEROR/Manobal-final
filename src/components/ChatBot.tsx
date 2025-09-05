@@ -109,7 +109,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
     synthRef.current?.cancel(); // Cancel speech if user sends new message
 
     try {
-      const response = await fetch('http://localhost:5000/chat', {
+      const response = await fetch('https://manobal-finall.onrender.com/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
