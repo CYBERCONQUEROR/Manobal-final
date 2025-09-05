@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Existing rule for users collection
+    match /users/{userId} {
+      allow read, create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false; // Users cannot delete their own profiles via client
+    }
+
+    // Existing rule for communityPosts collection (resources)
+    match /communityPosts/{postId} {
+      allow read: if true; // Everyone can read community posts
+      allow create: if request.auth != null; // Only authenticated users can create
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId; // Only owner can update
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId; // Only owner can delete
+    }
+
+    // Existing rule for sub-collection of comments
+    match /communityPosts/{postId}/comments/{commentId} {
+      allow read: if true; // Everyone can read comments
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId; // Only authenticated user can create a comment and it must be their own
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId; // Only owner can update
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId; // Only owner can delete
+    }
+
+    // Existing rule for resourceReports collection
+    match /resourceReports/{reportId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.reportedBy; // Only the reporter can create a report
+      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; // Only admins can read reports
+      allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; // Only admins can update reports
+      allow delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; // Only admins can delete reports
+    }
+    
+    // New rule for ratings collection
+    match /ratings/{ratingId} {
+      // Anyone can read ratings (for public display)
+      allow read: if true;
+      
+      // Only authenticated users can create ratings
+      allow create: if request.auth != null && 
+                    request.auth.uid == request.resource.data.userId &&
+                    request.resource.data.keys().hasAll(['bookingId', 'userId', 'userDisplayName', 'therapistId', 'therapistName', 'ratings', 'wouldRecommend', 'isAnonymous']) &&
+                    request.resource.data.ratings.overall >= 1 && 
+                    request.resource.data.ratings.overall <= 5 &&
+                    request.resource.data.ratings.serviceQuality >= 1 && 
+                    request.resource.data.ratings.serviceQuality <= 5 &&
+                    request.resource.data.ratings.valueForMoney >= 1 && 
+                    request.resource.data.ratings.valueForMoney <= 5 &&
+                    // comments field is optional, so we don't include it in hasAll, but we can validate if present
+                    (!('comments' in request.resource.data) || request.resource.data.comments is string && request.resource.data.comments.size() <= 500);
+      
+      // Allow updates within 7 days by rating owner
+      allow update: if request.auth != null && 
+                    request.auth.uid == resource.data.userId &&
+                    request.time < resource.data.createdAt + duration.value(7, 'd');
+      
+      // Ratings cannot be deleted (permanent record)
+      allow delete: if false;
+    }
+
+    // Update booking rules to allow rating status updates
+    match /bookings/{bookingId} {
+      allow read, create: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow update: if request.auth != null && 
+                    request.auth.uid == resource.data.userId &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['hasRated', 'ratingId', 'ratingReminderSent', 'lastReminderDate']);
+      allow delete: if false;
+    }
+  }
+}

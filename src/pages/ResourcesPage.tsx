@@ -1,18 +1,200 @@
-import React, { useState } from 'react';
-import { Play, Download, BookOpen, Heart, Star, Search, Filter, Clock, User } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Play, Download, BookOpen, Heart, Star, Search, Filter, Clock, User, MessageSquare, Share2, Flag, Bookmark } from 'lucide-react';
+import { Resource, fetchCommunityResources, toggleResourceLike } from '../services/resourceService';
+import { useAuth } from '../contexts/AuthContext'; // Assuming AuthContext provides user info
+
+interface YouTubeVideoPlayerProps {
+  videoUrl: string;
+  onClose: () => void;
+}
+
+const YouTubeVideoPlayer: React.FC<YouTubeVideoPlayerProps> = ({ videoUrl, onClose }) => {
+  const getYouTubeEmbedUrl = (url: string) => {
+    const videoIdMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=|embed\/|v\/|)([^\s&?]+)/);
+    return videoIdMatch ? `https://www.youtube.com/embed/${videoIdMatch[1]}?autoplay=1` : null;
+  };
+
+  const embedUrl = getYouTubeEmbedUrl(videoUrl);
+
+  if (!embedUrl) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-lg w-full">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Invalid Video URL</h3>
+          <p className="text-gray-600 dark:text-gray-400">The provided YouTube URL is not valid. Please check it and try again.</p>
+          <button
+            onClick={onClose}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+      <div className="relative w-full max-w-4xl aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-2xl">
+        <iframe
+          className="w-full h-full"
+          src={embedUrl}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title="YouTube video player"
+        ></iframe>
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full hover:bg-black/75 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+interface PdfViewerProps {
+  pdfUrl: string;
+  onClose: () => void;
+}
+
+const PdfViewer: React.FC<PdfViewerProps> = ({ pdfUrl, onClose }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+      <div className="relative w-full max-w-4xl h-5/6 bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-2xl flex flex-col">
+        <div className="flex justify-end p-2">
+          <a 
+            href={pdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download
+            className="mr-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+          >
+            <Download className="w-5 h-5 mr-2" /> Download PDF
+          </a>
+          <button
+            onClick={onClose}
+            className="p-2 bg-black/50 text-white rounded-full hover:bg-black/75 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <iframe
+          className="flex-grow"
+          src={pdfUrl}
+          title="PDF Viewer"
+          frameBorder="0"
+        ></iframe>
+      </div>
+    </div>
+  );
+};
+
+interface ArticleReaderProps {
+  articleUrl: string;
+  onClose: () => void;
+}
+
+const ArticleReader: React.FC<ArticleReaderProps> = ({ articleUrl, onClose }) => {
+  const [articleContent, setArticleContent] = useState<any | null>(null);
+  const [loadingArticle, setLoadingArticle] = useState(true);
+  const [articleError, setArticleError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchArticleContent = async () => {
+      setLoadingArticle(true);
+      setArticleError(null);
+      try {
+        const response = await fetch('http://localhost:5000/fetch_article_metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ article_url: articleUrl }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch article content');
+        }
+
+        const data = await response.json();
+        setArticleContent(data);
+      } catch (err: any) {
+        console.error("Error fetching article content: ", err);
+        setArticleError(err.message || "Failed to load article content.");
+      } finally {
+        setLoadingArticle(false);
+      }
+    };
+    fetchArticleContent();
+  }, [articleUrl]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-3xl w-full h-5/6 flex flex-col overflow-hidden">
+        <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{articleContent?.title || "Article Reader"}</h2>
+          <button
+            onClick={onClose}
+            className="p-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-grow p-4 overflow-y-auto custom-scrollbar">
+          {loadingArticle ? (
+            <p className="text-gray-600 dark:text-gray-400">Loading article...</p>
+          ) : articleError ? (
+            <p className="text-red-500">Error: {articleError}</p>
+          ) : (
+            <article className="prose dark:prose-invert max-w-none">
+              {articleContent?.thumbnail && <img src={articleContent.thumbnail} alt={articleContent.title} className="w-full rounded-lg mb-4" />}
+              <p className="text-gray-700 dark:text-gray-300 mb-4">{articleContent?.description}</p>
+              <div dangerouslySetInnerHTML={{ __html: articleContent?.summary || 'No content available.' }} />
+            </article>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface ResourceMetadata {
+  title?: string;
+  thumbnail?: string;
+  duration?: number; // for videos (in seconds)
+  authors?: string[]; // for research papers
+  publishDate?: Date; // Convert Firestore Timestamp to JS Date
+  summary?: string;
+  viewCount?: number; // For YouTube videos
+  uploadDate?: Date; // For YouTube videos
+}
 
 interface Resource {
-  id: string;
+  id: string; // Corresponds to postId
+  userId: string;
+  userDisplayName: string;
+  userPhotoURL: string;
   title: string;
   description: string;
-  type: 'video' | 'article' | 'audio' | 'tool';
-  category: string;
-  duration?: string;
-  author: string;
-  rating: number;
-  thumbnail: string;
-  isFavorite: boolean;
+  resourceType: 'youtube' | 'research_paper' | 'article' | 'funny_video'; // Updated types
+  resourceURL: string;
+  resourceMetadata?: ResourceMetadata;
   tags: string[];
+  likes: number;
+  likedBy: string[];
+  createdAt: Date;
+  updatedAt: Date;
+  // Existing fields from ResourcesPage.tsx that are not directly in communityPosts schema but relevant for display/filtering
+  category: string;
+  rating: number; // For overall resource rating, or funny video rating
   difficulty: 'beginner' | 'intermediate' | 'advanced';
 }
 
@@ -29,145 +211,95 @@ const categories = [
 ];
 
 const sampleResources: Resource[] = [
-  {
-    id: '1',
-    title: '5-Minute Daily Meditation for Anxiety',
-    description: 'A gentle guided meditation designed specifically for managing anxiety symptoms. Perfect for beginners and can be done anywhere.',
-    type: 'audio',
-    category: 'anxiety',
-    duration: '5 min',
-    author: 'Dr. Sarah Wellness',
-    rating: 4.8,
-    thumbnail: 'https://images.pexels.com/photos/3094230/pexels-photo-3094230.jpeg?auto=compress&cs=tinysrgb&w=300',
-    isFavorite: false,
-    tags: ['meditation', 'breathing', 'quick-relief'],
-    difficulty: 'beginner'
-  },
-  {
-    id: '2',
-    title: 'Understanding Depression: A Complete Guide',
-    description: 'Comprehensive article covering symptoms, causes, and treatment options for depression. Written in accessible language with practical tips.',
-    type: 'article',
-    category: 'depression',
-    duration: '15 min read',
-    author: 'Mental Health Foundation',
-    rating: 4.9,
-    thumbnail: 'https://images.pexels.com/photos/6931988/pexels-photo-6931988.jpeg?auto=compress&cs=tinysrgb&w=300',
-    isFavorite: true,
-    tags: ['education', 'symptoms', 'treatment'],
-    difficulty: 'beginner'
-  },
-  {
-    id: '3',
-    title: 'Cognitive Behavioral Therapy Techniques',
-    description: 'Learn practical CBT techniques you can use daily. Interactive exercises and worksheets included for hands-on practice.',
-    type: 'tool',
-    category: 'anxiety',
-    duration: '30 min',
-    author: 'CBT Institute',
-    rating: 4.7,
-    thumbnail: 'https://images.pexels.com/photos/7176319/pexels-photo-7176319.jpeg?auto=compress&cs=tinysrgb&w=300',
-    isFavorite: false,
-    tags: ['cbt', 'worksheets', 'interactive'],
-    difficulty: 'intermediate'
-  },
-  {
-    id: '4',
-    title: 'Sleep Hygiene for Better Mental Health',
-    description: 'Video guide on establishing healthy sleep patterns to support your mental wellbeing. Includes practical bedtime routine suggestions.',
-    type: 'video',
-    category: 'sleep',
-    duration: '12 min',
-    author: 'Dr. Michael Sleep',
-    rating: 4.6,
-    thumbnail: 'https://images.pexels.com/photos/3771069/pexels-photo-3771069.jpeg?auto=compress&cs=tinysrgb&w=300',
-    isFavorite: false,
-    tags: ['sleep-hygiene', 'routine', 'health'],
-    difficulty: 'beginner'
-  },
-  {
-    id: '5',
-    title: 'Mindful Study Techniques for Academic Success',
-    description: 'Combine mindfulness with effective study methods to reduce academic stress and improve focus. Perfect for students at any level.',
-    type: 'article',
-    category: 'academic',
-    duration: '10 min read',
-    author: 'Education & Wellness Center',
-    rating: 4.8,
-    thumbnail: 'https://images.pexels.com/photos/4145190/pexels-photo-4145190.jpeg?auto=compress&cs=tinysrgb&w=300',
-    isFavorite: true,
-    tags: ['study-skills', 'focus', 'stress-reduction'],
-    difficulty: 'intermediate'
-  },
-  {
-    id: '6',
-    title: 'Crisis Support Planning Worksheet',
-    description: 'Interactive tool to help you create a personalized crisis support plan. Includes emergency contacts and coping strategies.',
-    type: 'tool',
-    category: 'crisis',
-    duration: '20 min',
-    author: 'Crisis Prevention Network',
-    rating: 4.9,
-    thumbnail: 'https://images.pexels.com/photos/6146953/pexels-photo-6146953.jpeg?auto=compress&cs=tinysrgb&w=300',
-    isFavorite: false,
-    tags: ['crisis-planning', 'emergency', 'safety'],
-    difficulty: 'beginner'
-  }
+  // REMOVE THIS BLOCK - It will be replaced by data from Firestore
 ];
 
 export default function ResourcesPage() {
+  const { user } = useAuth(); // Get current user from AuthContext
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [resources, setResources] = useState(sampleResources);
+  const [resources, setResources] = useState<Resource[]>([]); // Initialize as empty array
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('rating');
+  const [sortBy, setSortBy] = useState('date'); // Default sort by date
   const [filterType, setFilterType] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null); // State for video player
+  const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null); // State for PDF viewer
+  const [selectedArticleUrl, setSelectedArticleUrl] = useState<string | null>(null); // New state for article reader
+
+  useEffect(() => {
+    const getResources = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const fetchedResources = await fetchCommunityResources({
+          category: selectedCategory,
+          resourceType: filterType,
+          sortBy: sortBy,
+          searchQuery: searchQuery,
+        });
+        setResources(fetchedResources);
+      } catch (err) {
+        console.error("Failed to fetch resources:", err);
+        setError("Failed to load resources. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    getResources();
+  }, [selectedCategory, filterType, sortBy, searchQuery]);
 
   const filteredResources = resources.filter(resource => {
     const matchesCategory = selectedCategory === 'all' || resource.category === selectedCategory;
     const matchesSearch = searchQuery === '' || 
       resource.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       resource.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (resource.resourceMetadata?.summary?.toLowerCase().includes(searchQuery.toLowerCase())) || // Search summary as well
       resource.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesType = filterType === 'all' || resource.type === filterType;
+    const matchesType = filterType === 'all' || resource.resourceType === filterType;
     
     return matchesCategory && matchesSearch && matchesType;
-  }).sort((a, b) => {
-    if (sortBy === 'rating') return b.rating - a.rating;
-    if (sortBy === 'title') return a.title.localeCompare(b.title);
-    if (sortBy === 'duration') {
-      const getDurationMinutes = (duration: string) => {
-        const match = duration.match(/(\d+)/);
-        return match ? parseInt(match[1]) : 0;
-      };
-      return getDurationMinutes(a.duration || '0') - getDurationMinutes(b.duration || '0');
-    }
-    return 0;
-  });
+  }); 
 
-  const toggleFavorite = (resourceId: string) => {
-    setResources(prev => prev.map(resource => 
-      resource.id === resourceId 
-        ? { ...resource, isFavorite: !resource.isFavorite }
-        : resource
-    ));
+  const handleToggleLike = async (resourceId: string, isCurrentlyLiked: boolean) => {
+    if (!user) {
+      alert("You need to be logged in to like resources.");
+      return;
+    }
+    try {
+      await toggleResourceLike(resourceId, user.uid, isCurrentlyLiked);
+      setResources(prev => prev.map(resource => {
+        if (resource.id === resourceId) {
+          const newLikes = isCurrentlyLiked ? resource.likes - 1 : resource.likes + 1;
+          const newLikedBy = isCurrentlyLiked 
+            ? resource.likedBy.filter(id => id !== user.uid)
+            : [...resource.likedBy, user.uid];
+          return { ...resource, likes: newLikes, likedBy: newLikedBy };
+        }
+        return resource;
+      }));
+    } catch (e) {
+      console.error("Error toggling like: ", e);
+      alert("Failed to update like status. Please try again.");
+    }
   };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'video': return Play;
+      case 'youtube': return Play;
+      case 'research_paper': return BookOpen;
       case 'article': return BookOpen;
-      case 'audio': return Play;
-      case 'tool': return Download;
+      case 'funny_video': return Play; 
       default: return BookOpen;
     }
   };
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'video': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
-      case 'article': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-      case 'audio': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-      case 'tool': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300';
+      case 'youtube': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+      case 'research_paper': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+      case 'article': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+      case 'funny_video': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300';
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-300';
     }
   };
@@ -179,6 +311,36 @@ export default function ResourcesPage() {
       case 'advanced': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-300';
     }
+  };
+
+  // Function to open the video player modal
+  const openVideoPlayer = (url: string) => {
+    setSelectedVideoUrl(url);
+  };
+
+  // Function to close the video player modal
+  const closeVideoPlayer = () => {
+    setSelectedVideoUrl(null);
+  };
+
+  // Function to open the PDF viewer modal
+  const openPdfViewer = (url: string) => {
+    setSelectedPdfUrl(url);
+  };
+
+  // Function to close the PDF viewer modal
+  const closePdfViewer = () => {
+    setSelectedPdfUrl(null);
+  };
+
+  // Function to open the Article reader modal
+  const openArticleReader = (url: string) => {
+    setSelectedArticleUrl(url);
+  };
+
+  // Function to close the Article reader modal
+  const closeArticleReader = () => {
+    setSelectedArticleUrl(null);
   };
 
   return (
@@ -212,16 +374,18 @@ export default function ResourcesPage() {
                 className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
               >
                 <option value="all">All Types</option>
-                <option value="video">Videos</option>
+                <option value="youtube">YouTube Videos</option>
+                <option value="research_paper">Research Papers</option>
                 <option value="article">Articles</option>
-                <option value="audio">Audio</option>
-                <option value="tool">Tools</option>
+                <option value="funny_video">Funny Videos</option>
               </select>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
               >
+                <option value="date">Newest</option>
+                <option value="popularity">Most Liked</option>
                 <option value="rating">Highest Rated</option>
                 <option value="title">A-Z</option>
                 <option value="duration">Duration</option>
@@ -247,8 +411,21 @@ export default function ResourcesPage() {
           </div>
         </div>
 
+        {/* Loading and Error States */}
+        {loading && (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <p className="text-gray-600 dark:text-gray-400">Loading resources...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-red-500">
+            <p>{error}</p>
+          </div>
+        )}
+
         {/* Resources Grid */}
-        {filteredResources.length === 0 ? (
+        {!loading && !error && filteredResources.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
             <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
@@ -258,37 +435,49 @@ export default function ResourcesPage() {
               Try adjusting your search terms or category filter
             </p>
           </div>
-        ) : (
+        ) : (!loading && !error && (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredResources.map(resource => {
-              const TypeIcon = getTypeIcon(resource.type);
+              const TypeIcon = getTypeIcon(resource.resourceType);
+              const isLiked = user ? resource.likedBy.includes(user.uid) : false;
+
+              const handleResourceClick = () => {
+                if (resource.resourceType === 'youtube' || resource.resourceType === 'funny_video') {
+                  openVideoPlayer(resource.resourceURL);
+                } else if (resource.resourceType === 'research_paper') {
+                  openPdfViewer(resource.resourceURL); 
+                } else if (resource.resourceType === 'article') {
+                  openArticleReader(resource.resourceURL); // Open article in reader mode
+                }
+              };
+
               return (
                 <div key={resource.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-shadow">
                   <div className="relative">
                     <img
-                      src={resource.thumbnail}
+                      src={resource.resourceMetadata?.thumbnail || 'https://via.placeholder.com/300x200'}
                       alt={resource.title}
                       className="w-full h-48 object-cover"
                     />
                     <div className="absolute top-4 left-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(resource.type)}`}>
-                        {resource.type.charAt(0).toUpperCase() + resource.type.slice(1)}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(resource.resourceType)}`}>
+                        {resource.resourceType.charAt(0).toUpperCase() + resource.resourceType.slice(1)}
                       </span>
                     </div>
                     <button
-                      onClick={() => toggleFavorite(resource.id)}
+                      onClick={() => handleToggleLike(resource.id!, isLiked)}
                       className={`absolute top-4 right-4 p-2 rounded-full backdrop-blur-sm transition-colors ${
-                        resource.isFavorite
+                        isLiked
                           ? 'bg-red-500 text-white'
                           : 'bg-white/80 text-gray-600 hover:bg-white'
                       }`}
                     >
-                      <Heart className={`w-4 h-4 ${resource.isFavorite ? 'fill-current' : ''}`} />
+                      <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
                     </button>
-                    {resource.duration && (
+                    {resource.resourceMetadata?.duration && (
                       <div className="absolute bottom-4 right-4 bg-black/70 text-white px-2 py-1 rounded text-sm flex items-center">
                         <Clock className="w-3 h-3 mr-1" />
-                        {resource.duration}
+                        {Math.floor(resource.resourceMetadata.duration / 60)}m {resource.resourceMetadata.duration % 60}s
                       </div>
                     )}
                   </div>
@@ -301,7 +490,7 @@ export default function ResourcesPage() {
                       <div className="flex items-center">
                         <Star className="w-4 h-4 text-yellow-400 fill-current mr-1" />
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          {resource.rating}
+                          {resource.rating} ({resource.likes})
                         </span>
                       </div>
                     </div>
@@ -316,7 +505,7 @@ export default function ResourcesPage() {
                     
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
                       <User className="w-4 h-4 mr-1" />
-                      <span>{resource.author}</span>
+                      <span>{resource.userDisplayName}</span>
                     </div>
                     
                     <div className="flex flex-wrap gap-1 mb-4">
@@ -335,12 +524,14 @@ export default function ResourcesPage() {
                       )}
                     </div>
                     
-                    <button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all transform hover:scale-105 flex items-center justify-center space-x-2">
+                    <button 
+                      onClick={handleResourceClick}
+                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all transform hover:scale-105 flex items-center justify-center space-x-2">
                       <TypeIcon className="w-5 h-5" />
                       <span>
-                        {resource.type === 'video' ? 'Watch Now' :
-                         resource.type === 'audio' ? 'Listen Now' :
-                         resource.type === 'tool' ? 'Use Tool' : 'Read Now'}
+                        {resource.resourceType === 'youtube' || resource.resourceType === 'funny_video' ? 'Watch Now' :
+                         resource.resourceType === 'research_paper' ? 'View PDF' :
+                         resource.resourceType === 'article' ? 'Read Now' : 'View Resource'}
                       </span>
                     </button>
                   </div>
@@ -348,6 +539,18 @@ export default function ResourcesPage() {
               );
             })}
           </div>
+        ))}
+
+        {selectedVideoUrl && (
+          <YouTubeVideoPlayer videoUrl={selectedVideoUrl} onClose={closeVideoPlayer} />
+        )}
+
+        {selectedPdfUrl && (
+          <PdfViewer pdfUrl={selectedPdfUrl} onClose={closePdfViewer} />
+        )}
+
+        {selectedArticleUrl && (
+          <ArticleReader articleUrl={selectedArticleUrl} onClose={closeArticleReader} />
         )}
 
         {/* Featured Collections */}

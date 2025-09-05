@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { AlertTriangle, Users, MessageCircle, Calendar, TrendingUp, Flag, Shield, Eye, Download, Filter } from 'lucide-react';
+import { AlertTriangle, Users, MessageCircle, Calendar, TrendingUp, Flag, Shield, Eye, Download, Filter, CheckCircle, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { fetchReportedResources, updateReportedResourceStatus, deleteReportedResource, ReportedResource } from '../services/resourceService';
 
 const engagementData = [
   { month: 'Jan', chatSessions: 450, bookings: 85, forumPosts: 120 },
@@ -21,43 +22,32 @@ const crisisData = [
 
 const COLORS = ['#8B5CF6', '#3B82F6', '#EF4444', '#F59E0B'];
 
-const flaggedContent = [
-  {
-    id: '1',
-    type: 'forum_post',
-    title: 'Feeling hopeless about everything',
-    author: 'Anonymous User',
-    timestamp: new Date(Date.now() - 1800000),
-    severity: 'high',
-    reason: 'Self-harm mentions',
-    status: 'pending'
-  },
-  {
-    id: '2',
-    type: 'chat_session',
-    title: 'Crisis intervention needed',
-    author: 'Anonymous User',
-    timestamp: new Date(Date.now() - 3600000),
-    severity: 'critical',
-    reason: 'Suicide ideation',
-    status: 'escalated'
-  },
-  {
-    id: '3',
-    type: 'forum_post',
-    title: 'Struggling with panic attacks',
-    author: 'Anonymous User',
-    timestamp: new Date(Date.now() - 7200000),
-    severity: 'medium',
-    reason: 'Crisis keywords detected',
-    status: 'reviewed'
-  }
-];
-
 export default function AdminPage() {
   const { user } = useAuth();
   const [selectedTimeframe, setSelectedTimeframe] = useState('7d');
   const [activeTab, setActiveTab] = useState('overview');
+  const [reportedResources, setReportedResources] = useState<ReportedResource[]>([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+  const [reportsError, setReportsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      const getReportedResources = async () => {
+        setLoadingReports(true);
+        setReportsError(null);
+        try {
+          const fetchedReports = await fetchReportedResources();
+          setReportedResources(fetchedReports);
+        } catch (err) {
+          console.error("Failed to fetch reported resources:", err);
+          setReportsError("Failed to load reported resources.");
+        } finally {
+          setLoadingReports(false);
+        }
+      };
+      getReportedResources();
+    }
+  }, [user]);
 
   if (!user || user.role !== 'admin') {
     return (
@@ -74,6 +64,33 @@ export default function AdminPage() {
       </div>
     );
   }
+
+  const handleUpdateReportStatus = async (reportId: string, newStatus: 'pending' | 'reviewed' | 'resolved' | 'deleted') => {
+    try {
+      await updateReportedResourceStatus(reportId, newStatus);
+      setReportedResources(prev =>
+        prev.map(report =>
+          report.id === reportId ? { ...report, status: newStatus } : report
+        )
+      );
+    } catch (e) {
+      console.error("Error updating report status:", e);
+      alert("Failed to update report status.");
+    }
+  };
+
+  const handleDeleteResourceAndReport = async (reportId: string, resourceId: string, deleteOriginal: boolean) => {
+    if (window.confirm("Are you sure you want to delete this report?" + (deleteOriginal ? " This will also permanently delete the original resource." : ""))) {
+      try {
+        await deleteReportedResource(reportId, resourceId, deleteOriginal);
+        setReportedResources(prev => prev.filter(report => report.id !== reportId));
+        alert("Report and associated resource (if selected) deleted successfully.");
+      } catch (e) {
+        console.error("Error deleting report/resource:", e);
+        alert("Failed to delete report or resource.");
+      }
+    }
+  };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -146,11 +163,11 @@ export default function AdminPage() {
               <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">13</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{reportedResources.filter(r => r.status === 'pending' || r.status === 'escalated').length}</p>
               <p className="text-sm text-red-600">Requires attention</p>
             </div>
           </div>
-          <h3 className="font-semibold text-gray-900 dark:text-white">Crisis Alerts</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white">Pending Reports</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">Content flagged for review</p>
         </div>
       </div>
@@ -212,7 +229,7 @@ export default function AdminPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Crisis Monitoring Dashboard
+          Reported Content Monitoring
         </h2>
         <div className="flex items-center space-x-4">
           <select
@@ -238,73 +255,113 @@ export default function AdminPage() {
             Flagged Content Requiring Review
           </h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Content
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Severity
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Reason
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {flaggedContent.map((item) => (
-                <tr key={item.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {item.title}
-                      </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {item.type.replace('_', ' ')} • {item.author}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {item.timestamp.toLocaleString()}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getSeverityColor(item.severity)}`}>
-                      {item.severity}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {item.reason}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900 flex items-center">
-                        <Eye className="w-4 h-4 mr-1" />
-                        Review
-                      </button>
-                      <button className="text-red-600 hover:text-red-900 flex items-center">
-                        <Flag className="w-4 h-4 mr-1" />
-                        Escalate
-                      </button>
-                    </div>
-                  </td>
+        {loadingReports ? (
+          <div className="text-center p-6 text-gray-600 dark:text-gray-400">Loading reported resources...</div>
+        ) : reportsError ? (
+          <div className="text-center p-6 text-red-500">Error: {reportsError}</div>
+        ) : reportedResources.length === 0 ? (
+          <div className="text-center p-6 text-gray-600 dark:text-gray-400">No flagged content to review.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Resource Title
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Reason
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Reported By
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Reported At
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {reportedResources.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        {item.resourceTitle || 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 dark:text-white">
+                        {item.resourceType || 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-normal text-sm text-gray-900 dark:text-white max-w-xs">
+                      {item.reason}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {item.reportedBy}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {item.reportedAt.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex space-x-2">
+                        {item.status === 'pending' && (
+                          <button
+                            onClick={() => handleUpdateReportStatus(item.id, 'reviewed')}
+                            className="text-blue-600 hover:text-blue-900 flex items-center"
+                            title="Mark as Reviewed"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            Review
+                          </button>
+                        )}
+                        {(item.status === 'pending' || item.status === 'reviewed') && (
+                          <button
+                            onClick={() => handleUpdateReportStatus(item.id, 'resolved')}
+                            className="text-green-600 hover:text-green-900 flex items-center"
+                            title="Mark as Resolved"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Resolve
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteResourceAndReport(item.id, item.resourceId, true)}
+                          className="text-red-600 hover:text-red-900 flex items-center"
+                          title="Delete Report and Resource"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete All
+                        </button>
+                        <button
+                          onClick={() => handleDeleteResourceAndReport(item.id, item.resourceId, false)}
+                          className="text-orange-600 hover:text-orange-900 flex items-center"
+                          title="Delete Report Only"
+                        >
+                          <Flag className="w-4 h-4 mr-1" />
+                          Delete Report
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Crisis Intervention Stats */}
@@ -314,7 +371,7 @@ export default function AdminPage() {
             <h3 className="font-semibold text-red-800 dark:text-red-300">Critical Alerts</h3>
             <AlertTriangle className="w-6 h-6 text-red-600" />
           </div>
-          <p className="text-3xl font-bold text-red-800 dark:text-red-300">5</p>
+          <p className="text-3xl font-bold text-red-800 dark:text-red-300">{reportedResources.filter(r => r.status === 'pending' && r.reason.includes('Suicide')).length}</p>
           <p className="text-sm text-red-600 dark:text-red-400">Immediate intervention required</p>
         </div>
 
@@ -322,8 +379,8 @@ export default function AdminPage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">High Priority</h3>
             <Flag className="w-6 h-6 text-yellow-600" />
-          </div>
-          <p className="text-3xl font-bold text-yellow-800 dark:text-yellow-300">8</p>
+            </div>
+          <p className="text-3xl font-bold text-yellow-800 dark:text-yellow-300">{reportedResources.filter(r => r.status === 'pending' && !r.reason.includes('Suicide')).length}</p>
           <p className="text-sm text-yellow-600 dark:text-yellow-400">Review within 2 hours</p>
         </div>
 
@@ -332,7 +389,7 @@ export default function AdminPage() {
             <h3 className="font-semibold text-blue-800 dark:text-blue-300">Resolved Today</h3>
             <Shield className="w-6 h-6 text-blue-600" />
           </div>
-          <p className="text-3xl font-bold text-blue-800 dark:text-blue-300">23</p>
+          <p className="text-3xl font-bold text-blue-800 dark:text-blue-300">{reportedResources.filter(r => r.status === 'resolved' && r.reportedAt.toDateString() === new Date().toDateString()).length}</p>
           <p className="text-sm text-blue-600 dark:text-blue-400">Successfully handled</p>
         </div>
       </div>
@@ -348,7 +405,7 @@ export default function AdminPage() {
             Admin Dashboard
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Monitor platform health, user engagement, and crisis intervention activities
+            Monitor platform health, user engagement, and content moderation activities
           </p>
         </div>
 
@@ -372,7 +429,7 @@ export default function AdminPage() {
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            Crisis Monitoring
+            Content Moderation
           </button>
         </div>
 

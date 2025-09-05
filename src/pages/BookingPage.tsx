@@ -1,43 +1,238 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, User, MapPin, Star, ChevronLeft, ChevronRight, CheckCircle, MessageCircle, Video, Phone } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext'; // Import useAuth
+import { Clock, User, Star, ChevronLeft, ChevronRight, CheckCircle, MessageCircle, Video, Phone, X } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { submitBookingRating } from '../services/bookingService';
+
+interface RatingModalProps {
+  bookingId: string;
+  therapistId: string;
+  therapistName: string; // New prop for therapist name
+  userId: string;
+  userDisplayName: string;
+  onClose: () => void;
+  onSkip: () => void; // New prop for skipping rating
+}
+
+const RatingModal: React.FC<RatingModalProps> = ({ bookingId, therapistId, therapistName, userId, userDisplayName, onClose, onSkip }) => {
+  const [overallRating, setOverallRating] = useState(0);
+  const [serviceQualityRating, setServiceQualityRating] = useState(0);
+  const [valueForMoneyRating, setValueForMoneyRating] = useState(0);
+  const [wouldRecommend, setWouldRecommend] = useState<boolean | null>(null);
+  const [comments, setComments] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const validateRating = () => {
+    if (overallRating === 0 || serviceQualityRating === 0 || valueForMoneyRating === 0) {
+      setError("Please provide a rating for all categories.");
+      return false;
+    }
+    if (wouldRecommend === null) {
+      setError("Please indicate if you would recommend this therapist.");
+      return false;
+    }
+    if (comments.length > 500) {
+      setError("Comments cannot exceed 500 characters.");
+      return false;
+    }
+    setError(null);
+    return true;
+  };
+
+  const handleSubmitRating = async () => {
+    if (!validateRating()) return;
+
+    setSubmitting(true);
+    setError(null); // Clear any previous errors at the start of a new submission attempt
+    try {
+      await submitBookingRating({
+        bookingId,
+        userId,
+        userDisplayName: isAnonymous ? 'Anonymous' : userDisplayName,
+        therapistId,
+        therapistName,
+        ratings: {
+          overall: overallRating,
+          serviceQuality: serviceQualityRating,
+          valueForMoney: valueForMoneyRating,
+        },
+        wouldRecommend: wouldRecommend!,
+        comments: comments,
+        isAnonymous: isAnonymous,
+      });
+      console.log("Rating submitted successfully. Closing modal..."); // Debug log
+      alert("Thank you for your rating!");
+      onClose();
+    } catch (e) {
+      console.error("Error submitting rating: ", e);
+      setError("Failed to submit rating. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const renderStarRating = (currentRating: number, setRating: (rating: number) => void) => (
+    <div className="flex items-center space-x-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          className={`w-6 h-6 cursor-pointer transition-colors duration-200
+            ${currentRating >= star ? 'text-yellow-400 fill-current' : 'text-gray-300 dark:text-gray-600 hover:text-yellow-300'}
+          `}
+          onClick={() => setRating(star)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') { 
+              setRating(star);
+              e.preventDefault();
+            }
+          }}
+          tabIndex={0}
+          role="radio"
+          aria-checked={currentRating === star}
+          aria-label={`${star} star`}
+        />
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 animate-slide-in-bottom">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-6 relative">
+        <button onClick={onClose} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+          <X className="w-6 h-6" />
+        </button>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 text-center">Rate Your Session with {therapistName}</h2>
+        <p className="text-gray-600 dark:text-gray-400 mb-6 text-center">Your feedback helps us improve!</p>
+
+        <div className="space-y-6">
+          <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-100 dark:border-gray-700">
+            <label className="block text-md font-medium text-gray-800 dark:text-gray-200 mb-2">1. Overall Experience</label>
+            {renderStarRating(overallRating, setOverallRating)}
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-100 dark:border-gray-700">
+            <label className="block text-md font-medium text-gray-800 dark:text-gray-200 mb-2">2. Service Quality</label>
+            {renderStarRating(serviceQualityRating, setServiceQualityRating)}
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-100 dark:border-gray-700">
+            <label className="block text-md font-medium text-gray-800 dark:text-gray-200 mb-2">3. Value for Money</label>
+            {renderStarRating(valueForMoneyRating, setValueForMoneyRating)}
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-100 dark:border-gray-700">
+            <label className="block text-md font-medium text-gray-800 dark:text-gray-200 mb-2">4. Would Recommend?</label>
+            <div className="flex space-x-4 mt-2">
+              <button
+                onClick={() => setWouldRecommend(true)}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all duration-200 ease-in-out ${wouldRecommend === true ? 'bg-green-600 text-white shadow-md' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-800 dark:hover:text-green-300'}`}
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setWouldRecommend(false)}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all duration-200 ease-in-out ${wouldRecommend === false ? 'bg-red-600 text-white shadow-md' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-800 dark:hover:text-red-300'}`}
+              >
+                No
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-100 dark:border-gray-700">
+            <label className="block text-md font-medium text-gray-800 dark:text-gray-200 mb-2">5. Additional Comments (Optional)</label>
+            <textarea
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              placeholder="Share your feedback and help us improve..."
+              rows={4}
+              maxLength={500}
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none shadow-sm"
+            ></textarea>
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-right mt-1">{comments.length}/500</p>
+          </div>
+
+          <div className="flex items-center justify-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700">
+            <input
+              type="checkbox"
+              id="anonymousRating"
+              checked={isAnonymous}
+              onChange={(e) => setIsAnonymous(e.target.checked)}
+              className="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
+            />
+            <label htmlFor="anonymousRating" className="ml-3 block text-base font-medium text-gray-900 dark:text-gray-300 cursor-pointer">Rate Anonymously</label>
+          </div>
+        </div>
+
+        {error && <p className="text-red-500 text-center mt-4 animate-pulse">{error}</p>}
+
+        <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8">
+          <button
+            onClick={onSkip}
+            className="px-8 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+            disabled={submitting}
+          >
+            Rate Later
+          </button>
+          <button
+            onClick={handleSubmitRating}
+            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full font-semibold hover:from-purple-700 hover:to-blue-700 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            disabled={submitting}
+          >
+            {submitting ? (
+              <span className="flex items-center justify-center"><svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Submitting...</span>
+            ) : (
+              'Submit Rating'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const therapists = [
   {
     id: '1',
     name: 'Dr. Sarah Johnson',
     specialty: 'Anxiety & Depression',
-    rating: 4.9,
-    reviews: 127,
+    rating: 4.9, // This will eventually be replaced by dynamic data
+    reviews: 127, // This will eventually be replaced by dynamic data
     languages: ['English', 'Spanish'],
     experience: '8 years',
     avatar: 'https://images.pexels.com/photos/5452201/pexels-photo-5452201.jpeg?auto=compress&cs=tinysrgb&w=300',
     bio: 'Specializes in cognitive behavioral therapy and mindfulness-based interventions for anxiety and depression.',
-    availability: 'Available today'
+    availability: 'Available today',
+    averageOverallRating: 4.8, // New field
+    totalRatings: 50, // New field
   },
   {
     id: '2',
     name: 'Dr. Michael Chen',
     specialty: 'Student Counseling',
-    rating: 4.8,
-    reviews: 89,
+    rating: 4.8, // This will eventually be replaced by dynamic data
+    reviews: 89, // This will eventually be replaced by dynamic data
     languages: ['English', 'Mandarin'],
     experience: '12 years',
     avatar: 'https://images.pexels.com/photos/5452274/pexels-photo-5452274.jpeg?auto=compress&cs=tinysrgb&w=300',
     bio: 'Expert in academic stress, career counseling, and helping students navigate life transitions.',
-    availability: 'Next available: Tomorrow'
+    availability: 'Next available: Tomorrow',
+    averageOverallRating: 4.7, // New field
+    totalRatings: 30, // New field
   },
   {
     id: '3',
     name: 'Dr. Emily Rodriguez',
     specialty: 'Trauma & PTSD',
-    rating: 4.9,
-    reviews: 203,
+    rating: 4.9, // This will eventually be replaced by dynamic data
+    reviews: 203, // This will eventually be replaced by dynamic data
     languages: ['English', 'Spanish', 'Portuguese'],
     experience: '15 years',
     avatar: 'https://images.pexels.com/photos/5452293/pexels-photo-5452293.jpeg?auto=compress&cs=tinysrgb&w=300',
     bio: 'Trauma-informed therapist specializing in EMDR and somatic approaches to healing.',
-    availability: 'Available this week'
+    availability: 'Available this week',
+    averageOverallRating: 4.9, // New field
+    totalRatings: 80, // New field
   }
 ];
 
@@ -74,7 +269,9 @@ export default function BookingPage() {
     urgency: 'low',
     additionalNotes: ''
   });
-  const [isBookingConfirmed, setIsBookingConfirmed] = useState(false); // New state for booking confirmation
+  const [isBookingConfirmed, setIsBookingConfirmed] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false); // New state to control rating modal
+  const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(null); // To store the booking ID for rating
   const { user } = useAuth(); // Get authenticated user
 
   // Pre-fill form data if user is logged in
@@ -98,10 +295,6 @@ export default function BookingPage() {
   ];
 
   const nextStep = () => {
-    // Remove the premature call to handleConfirmBooking
-    // if (currentStep === steps.length - 1) {
-    //   handleConfirmBooking();
-    // }
     setCurrentStep(prev => Math.min(prev + 1, steps.length));
   };
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
@@ -127,7 +320,15 @@ export default function BookingPage() {
     const selectedTherapistData = therapists.find(t => t.id === selectedTherapist);
     const selectedSessionTypeData = sessionTypes.find(t => t.id === selectedSessionType);
 
+    // Ensure user is logged in before booking
+    if (!user || !user.id) {
+      alert("You need to be logged in to confirm a booking.");
+      return;
+    }
+
     const bookingDetails = {
+      therapistId: selectedTherapistData?.id, // Add therapistId for rating
+      userId: user.id, // Add userId for rating
       therapistName: selectedTherapistData?.name,
       sessionType: selectedSessionTypeData?.name,
       date: selectedDate?.toLocaleDateString(),
@@ -160,6 +361,8 @@ export default function BookingPage() {
       const result = await response.json();
       console.log('Booking confirmation response:', result);
       setIsBookingConfirmed(true); // Set confirmation true on success
+      setConfirmedBookingId(result.bookingId); // Assuming backend returns bookingId
+      setShowRatingModal(true); // Show rating modal after successful booking
     } catch (error) {
       console.error('Error confirming booking:', error);
       setIsBookingConfirmed(false); // Ensure false on error
@@ -167,10 +370,15 @@ export default function BookingPage() {
     }
   };
 
+  const closeRatingModal = () => {
+    setShowRatingModal(false);
+    setConfirmedBookingId(null);
+  };
+
   const renderStepIndicator = () => (
     <div className="mb-8">
       <div className="flex items-center justify-between mb-4">
-        {steps.map((step, index) => (
+        {steps.map((_, index) => (
           <div key={index} className="flex items-center">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
               currentStep > index + 1 || (currentStep === index + 1 && isBookingConfirmed)
@@ -614,6 +822,21 @@ export default function BookingPage() {
           </div>
         </div>
       </div>
+
+      {showRatingModal && confirmedBookingId && user && (
+        <RatingModal
+          bookingId={confirmedBookingId}
+          therapistId={selectedTherapist!}
+          therapistName={therapists.find(t => t.id === selectedTherapist)?.name || ''}
+          userId={user.id}
+          userDisplayName={user.name || ''}
+          onClose={closeRatingModal}
+          onSkip={() => {
+            setShowRatingModal(false);
+            setConfirmedBookingId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
