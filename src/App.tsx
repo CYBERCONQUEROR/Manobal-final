@@ -27,6 +27,10 @@ function AuthGuard() {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate(); // For programmatic navigation
 
+  const handlePageChange = (page: string) => {
+    navigate(page);
+  };
+
   // Redirect to /profile after Google login if display name is missing or specific fields are empty
   // useEffect(() => {
   //   if (user && user.isNewUser && user.loginMethod === 'google') { // Assuming you track new users/login method
@@ -50,8 +54,8 @@ function AuthGuard() {
     <div className="min-h-screen transition-colors">
       <Navigation /> {/* Navigation no longer needs currentPage or onPageChange */}
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/home" element={<HomePage />} />
+        <Route path="/" element={<HomePage onPageChange={handlePageChange} />} />
+        <Route path="/home" element={<HomePage onPageChange={handlePageChange} />} />
         <Route path="/booking" element={<BookingPage />} />
         <Route path="/community" element={<CommunityPage />} />
         <Route path="/resources" element={<ResourcesPage />} />
@@ -59,7 +63,7 @@ function AuthGuard() {
         {user.role === 'admin' && (
           <Route path="/admin" element={<AdminPage />} />
         )}
-        <Route path="*" element={<HomePage />} /> {/* Fallback route */}
+        <Route path="*" element={<HomePage onPageChange={handlePageChange} />} /> {/* Fallback route */}
       </Routes>
     </div>
   );

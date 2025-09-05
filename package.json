@@ -7,8 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "add-resources": "node add_resources.cjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@types/three": "^0.180.0",
