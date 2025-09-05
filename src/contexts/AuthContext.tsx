@@ -1,19 +1,35 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db, app } from '../firebase'; // Import the Firebase app instance (app) and Firestore instance (db)
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut,
+  GoogleAuthProvider,
+  signInWithPopup,
+  updateProfile // Import updateProfile to update display name directly
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"; // Import Firestore functions
 
 interface User {
   id: string;
   name: string;
   email: string;
   role: 'user' | 'therapist' | 'admin';
-  avatar?: string;
+  avatar?: string; // This will now typically come from photoURL
+  profession?: string;
+  dateOfBirth?: string;
+  photoURL?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
-  register: (name: string, email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string, profession: string, dateOfBirth: string) => Promise<boolean>;
   logout: () => void;
+  updateUserProfile: (profileUpdates: Partial<User>) => Promise<boolean>; // New function to update user profile
   isLoading: boolean;
 }
 
@@ -34,80 +50,157 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const auth = getAuth(app);
 
   useEffect(() => {
-    // Check for existing session
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
-  }, []);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userDoc = await getDoc(userRef);
+
+        let userData: Partial<User> = {};
+        if (userDoc.exists()) {
+          userData = userDoc.data() as User;
+        } else {
+          // Create a new profile if it doesn't exist
+          userData = {
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
+            email: firebaseUser.email || '',
+            profession: '',
+            dateOfBirth: '',
+            photoURL: firebaseUser.photoURL || undefined,
+            role: 'user', // Default role
+          };
+          await setDoc(userRef, userData, { merge: true });
+        }
+
+        const idTokenResult = await firebaseUser.getIdTokenResult();
+        const userRole = (idTokenResult.claims.role || userData.role || 'user') as 'user' | 'therapist' | 'admin';
+
+        setUser({
+          id: firebaseUser.uid,
+          name: userData.name || firebaseUser.displayName || firebaseUser.email || 'User',
+          email: userData.email || firebaseUser.email || '',
+          role: userRole,
+          avatar: userData.photoURL || firebaseUser.photoURL || undefined, // Prioritize Firestore photoURL
+          profession: userData.profession || '',
+          dateOfBirth: userData.dateOfBirth || '',
+          photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
+        });
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [auth]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Demo users for testing
-    const demoUsers = [
-      { id: '1', name: 'John Doe', email: 'user@demo.com', role: 'user' as const },
-      { id: '2', name: 'Dr. Sarah Johnson', email: 'therapist@demo.com', role: 'therapist' as const },
-      { id: '3', name: 'Admin User', email: 'admin@demo.com', role: 'admin' as const }
-    ];
-    
-    const foundUser = demoUsers.find(u => u.email === email);
-    if (foundUser && password === 'demo123') {
-      setUser(foundUser);
-      localStorage.setItem('user', JSON.stringify(foundUser));
-      setIsLoading(false);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       return true;
+    } catch (error) {
+      console.error("Login failed:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
-    return false;
   };
 
   const loginWithGoogle = async (): Promise<boolean> => {
     setIsLoading(true);
-    // Simulate Google OAuth
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const googleUser = {
-      id: 'google_' + Math.random().toString(36).substr(2, 9),
-      name: 'Google User',
-      email: 'google@example.com',
-      role: 'user' as const,
-      avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=100'
-    };
-    
-    setUser(googleUser);
-    localStorage.setItem('user', JSON.stringify(googleUser));
-    setIsLoading(false);
-    return true;
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      // Profile creation/fetching logic is now handled in onAuthStateChanged
+      return true;
+    } catch (error) {
+      console.error("Google login failed:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const register = async (name: string, email: string, password: string): Promise<boolean> => {
+  const register = async (name: string, email: string, password: string, profession: string, dateOfBirth: string): Promise<boolean> => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newUser = {
-      id: 'user_' + Math.random().toString(36).substr(2, 9),
-      name,
-      email,
-      role: 'user' as const
-    };
-    
-    setUser(newUser);
-    localStorage.setItem('user', JSON.stringify(newUser));
-    setIsLoading(false);
-    return true;
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      await updateProfile(firebaseUser, { displayName: name });
+      
+      // Create user profile in Firestore
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const userProfile: Partial<User> = {
+        name: name,
+        email: email,
+        profession: profession,
+        dateOfBirth: dateOfBirth,
+        photoURL: undefined, // No photo on initial registration
+        role: 'user',
+      };
+      await setDoc(userRef, userProfile, { merge: true });
+
+      // Force re-fetch user data to include new profile fields
+      await firebaseUser.reload();
+      // onAuthStateChanged will be triggered, setting the full user object
+
+      return true;
+    } catch (error) {
+      console.error("Registration failed:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const updateUserProfile = async (profileUpdates: Partial<User>): Promise<boolean> => {
+    if (!user || !auth.currentUser) {
+      console.error("No user logged in to update profile.");
+      return false;
+    }
+
+    setIsLoading(true);
+    try {
+      const userRef = doc(db, "users", user.id);
+      await updateDoc(userRef, profileUpdates);
+
+      // Update the local user state
+      setUser(prevUser => {
+        if (!prevUser) return null;
+        return { ...prevUser, ...profileUpdates };
+      });
+
+      // If display name or photoURL are updated, also update Firebase Auth profile
+      if (profileUpdates.name || profileUpdates.photoURL) {
+        await updateProfile(auth.currentUser, {
+          displayName: profileUpdates.name,
+          photoURL: profileUpdates.photoURL,
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Failed to update user profile:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await signOut(auth);
+      setUser(null); // Explicitly clear user on logout
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const value = {
@@ -116,6 +209,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     loginWithGoogle,
     register,
     logout,
+    updateUserProfile,
     isLoading
   };
 

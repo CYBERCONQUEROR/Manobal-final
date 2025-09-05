@@ -12,6 +12,8 @@ export default function LoginPage({ onPageChange }: LoginPageProps) {
     name: '',
     email: '',
     password: '',
+    profession: '',
+    dateOfBirth: '',
     rememberMe: false,
     acceptTerms: false
   });
@@ -42,6 +44,14 @@ export default function LoginPage({ onPageChange }: LoginPageProps) {
       if (!formData.name) {
         newErrors.name = 'Name is required';
       }
+      if (!formData.profession) {
+        newErrors.profession = 'Profession/Occupation is required';
+      }
+      if (!formData.dateOfBirth) {
+        newErrors.dateOfBirth = 'Date of Birth is required';
+      } else if (!/^(19|20)\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(formData.dateOfBirth)) {
+        newErrors.dateOfBirth = 'Please enter a valid date of birth (YYYY-MM-DD)';
+      }
       if (!formData.acceptTerms) {
         newErrors.terms = 'You must accept the terms of service';
       }
@@ -59,7 +69,7 @@ export default function LoginPage({ onPageChange }: LoginPageProps) {
         setErrors({ general: 'Invalid email or password. Try: user@demo.com / demo123' });
       }
     } else {
-      success = await register(formData.name, formData.email, formData.password);
+      success = await register(formData.name, formData.email, formData.password, formData.profession, formData.dateOfBirth);
       if (!success) {
         setErrors({ general: 'Registration failed. Please try again.' });
       }
@@ -139,22 +149,53 @@ export default function LoginPage({ onPageChange }: LoginPageProps) {
             )}
 
             {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Enter your full name"
-                  />
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+                  {errors.name && <p className="mt-1 text-red-600 text-sm">{errors.name}</p>}
                 </div>
-                {errors.name && <p className="mt-1 text-red-600 text-sm">{errors.name}</p>}
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Profession/Occupation
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.profession}
+                      onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
+                      className="w-full pl-4 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="Enter your profession or occupation"
+                    />
+                  </div>
+                  {errors.profession && <p className="mt-1 text-red-600 text-sm">{errors.profession}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date of Birth
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={formData.dateOfBirth}
+                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                      className="w-full pl-4 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  {errors.dateOfBirth && <p className="mt-1 text-red-600 text-sm">{errors.dateOfBirth}</p>}
+                </div>
+              </>
             )}
 
             <div>

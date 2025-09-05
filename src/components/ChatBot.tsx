@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, Send, X, Download, Phone, AlertTriangle } from 'lucide-react';
+import { MessageCircle, Send, X, Download, Phone, AlertTriangle, Mic } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -25,11 +25,10 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isRecording, setIsRecording] = useState(false); // New state for recording
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const crisisKeywords = ['suicide', 'kill myself', 'end it all', 'hurt myself', 'die', 'overdose'];
-  const anxietyKeywords = ['anxious', 'panic', 'worried', 'stress', 'overwhelmed', 'scared'];
-  const depressionKeywords = ['depressed', 'sad', 'hopeless', 'lonely', 'worthless', 'empty'];
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const synthRef = useRef<SpeechSynthesis | null>(null); // New ref for SpeechSynthesis
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -37,156 +36,128 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
 
   useEffect(() => {
     scrollToBottom();
+
+    // Initialize SpeechRecognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript); // Set transcribed text to input field
+        setIsRecording(false);
+        if (transcript.trim()) {
+          // Auto-send the transcribed text
+          handleSend(transcript); // Pass transcript directly to handleSend
+        }
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error', event.error);
+        setIsRecording(false);
+        // Optionally, show a user-friendly error message
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsRecording(false);
+      };
+    } else {
+      console.warn('Web Speech API not supported in this browser.');
+      // Optionally, disable the mic button or show a warning to the user
+    }
+
+    // Initialize SpeechSynthesis
+    if ('speechSynthesis' in window) {
+      synthRef.current = window.speechSynthesis;
+    } else {
+      console.warn('Text-to-Speech not supported in this browser.');
+    }
+
+    // Cleanup function to stop speech when component unmounts or chat closes
+    return () => {
+      synthRef.current?.cancel();
+    };
+
   }, [messages]);
 
-  const detectMood = (text: string): 'positive' | 'neutral' | 'concerning' | 'crisis' => {
-    const lowerText = text.toLowerCase();
-    
-    if (crisisKeywords.some(keyword => lowerText.includes(keyword))) {
-      return 'crisis';
+  const speak = (text: string) => {
+    if (synthRef.current && text) {
+      synthRef.current.cancel(); // Stop any ongoing speech
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      synthRef.current.speak(utterance);
     }
-    
-    if (anxietyKeywords.some(keyword => lowerText.includes(keyword)) ||
-        depressionKeywords.some(keyword => lowerText.includes(keyword))) {
-      return 'concerning';
-    }
-    
-    const positiveKeywords = ['good', 'great', 'happy', 'better', 'excellent', 'wonderful'];
-    if (positiveKeywords.some(keyword => lowerText.includes(keyword))) {
-      return 'positive';
-    }
-    
-    return 'neutral';
   };
 
-  const generateResponse = (userMessage: string, mood: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    // Crisis intervention
-    if (mood === 'crisis') {
-      return `I'm very concerned about what you've shared. Please know that you're not alone, and there are people who want to help you right now.
-
-🚨 **Immediate Help Available:**
-• National Suicide Prevention Lifeline: 988
-• Crisis Text Line: Text HOME to 741741
-• Emergency Services: 911
-
-Would you like me to help you connect with a counselor for an appointment? Your life has value, and there are people who care about you.`;
-    }
-    
-    // Anxiety support
-    if (anxietyKeywords.some(keyword => lowerMessage.includes(keyword))) {
-      return `I understand you're feeling anxious. Let's try a quick grounding exercise:
-
-**5-4-3-2-1 Technique:**
-• 5 things you can see around you
-• 4 things you can touch
-• 3 things you can hear
-• 2 things you can smell
-• 1 thing you can taste
-
-Take slow, deep breaths. Would you like some coping strategies for managing anxiety, or should we talk about what's causing these feelings?`;
-    }
-    
-    // Depression support
-    if (depressionKeywords.some(keyword => lowerMessage.includes(keyword))) {
-      return `I hear that you're going through a difficult time. Depression can make everything feel overwhelming, but you've taken an important step by reaching out.
-
-**Small steps that can help:**
-• Try to maintain a daily routine
-• Get some sunlight or fresh air
-• Connect with someone you trust
-• Practice self-compassion
-
-Remember: These feelings are temporary, even when they don't feel that way. Would you like to explore some coping strategies or talk about connecting with a professional counselor?`;
-    }
-    
-    // Sleep issues
-    if (lowerMessage.includes('sleep') || lowerMessage.includes('insomnia') || lowerMessage.includes('tired')) {
-      return `Sleep issues can really impact your mental health. Here are some tips for better sleep hygiene:
-
-**Sleep Wellness Tips:**
-• Keep a consistent bedtime routine
-• Limit screens 1 hour before bed
-• Create a cool, dark environment
-• Try relaxation techniques like deep breathing
-• Avoid caffeine after 2 PM
-
-Would you like me to guide you through a quick relaxation exercise, or do you want to discuss what might be affecting your sleep?`;
-    }
-    
-    // Study/academic stress
-    if (lowerMessage.includes('study') || lowerMessage.includes('exam') || lowerMessage.includes('school') || lowerMessage.includes('assignment')) {
-      return `Academic stress is very common! Let's break this down into manageable steps:
-
-**Study Stress Management:**
-• Break large tasks into smaller, specific goals
-• Use the Pomodoro Technique (25 min study, 5 min break)
-• Practice self-compassion - you're doing your best
-• Remember: grades don't define your worth
-
-**Quick stress relief:**
-• Take 5 deep breaths
-• Do a brief walk or stretch
-• Listen to calming music
-
-Would you like specific study strategies or stress management techniques?`;
-    }
-    
-    // Positive responses
-    if (mood === 'positive') {
-      return `That's wonderful to hear! I'm glad you're feeling good. Maintaining positive mental health is just as important as addressing challenges.
-
-**Ways to maintain wellbeing:**
-• Practice gratitude daily
-• Stay connected with supportive people
-• Engage in activities you enjoy
-• Keep up healthy routines
-
-Is there anything specific that's been helping you feel good lately? I'd love to hear about it!`;
-    }
-    
-    // Default supportive response
-    const responses = [
-      "Thank you for sharing that with me. How are you feeling right now? I'm here to listen and support you.",
-      "I appreciate you opening up. Would you like to talk more about what's on your mind?",
-      "It sounds like you have a lot going on. What would be most helpful for you right now?",
-      "I'm here to support you. Would you like some coping strategies, or would you prefer to talk through your feelings?",
-      "Sometimes it helps just to have someone listen. What's been the most challenging part of your day?"
-    ];
-    
-    return responses[Math.floor(Math.random() * responses.length)] + "\n\n💡 I can also help you book an appointment with a professional counselor if you'd like to talk to someone in person.";
-  };
-
-  const handleSend = async () => {
-    if (!input.trim()) return;
+  const handleSend = async (voiceInput?: string) => {
+    const messageToSend = voiceInput || input;
+    if (!messageToSend.trim()) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: input,
+      text: messageToSend,
       isBot: false,
       timestamp: new Date()
     };
 
-    const mood = detectMood(input);
-    userMessage.mood = mood;
-
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsTyping(true);
+    synthRef.current?.cancel(); // Cancel speech if user sends new message
 
-    // Simulate bot thinking time
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const response = await fetch('http://localhost:5000/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: userMessage.text }),
+      });
 
-    const botResponse: Message = {
-      id: (Date.now() + 1).toString(),
-      text: generateResponse(input, mood),
-      isBot: true,
-      timestamp: new Date()
-    };
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-    setMessages(prev => [...prev, botResponse]);
-    setIsTyping(false);
+      const data = await response.json();
+
+      const botResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        text: data.response,
+        isBot: true,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, botResponse]);
+      speak(botResponse.text); // Speak the bot response
+    } catch (error) {
+      console.error("Error communicating with backend:", error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "I'm sorry, I'm having trouble connecting to my services right now. Please try again later.",
+        isBot: true,
+        timestamp: new Date(),
+        mood: 'concerning'
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      speak(errorMessage.text); // Speak the error message
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleVoiceInput = () => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      // Request microphone permissions here if not already granted
+      // For simplicity, directly start recognition. Browser will prompt.
+      recognitionRef.current?.start();
+      setIsRecording(true);
+    }
   };
 
   const exportChat = () => {
@@ -310,8 +281,16 @@ Is there anything specific that's been helping you feel good lately? I'd love to
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Share what's on your mind..."
               className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              disabled={isTyping}
+              disabled={isTyping || isRecording}
             />
+            <button
+              onClick={handleVoiceInput} // Updated to call handleVoiceInput
+              className={`p-3 rounded-xl transition-colors ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+              aria-label="Voice input"
+              disabled={isTyping}
+            >
+              <Mic className={`w-5 h-5 ${isRecording ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`} />
+            </button>
             <button
               onClick={handleSend}
               disabled={!input.trim() || isTyping}

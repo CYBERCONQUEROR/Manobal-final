@@ -1,3 +1,41 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Base styles for themes */
+:root {
+  --color-bg-primary: #ffffff;
+  --color-text-primary: #1f2937;
+  --color-accent-purple: #8b5cf6;
+  --color-accent-blue: #3b82f6;
+}
+
+.light {
+  --color-bg-primary: #ffffff;
+  --color-text-primary: #1f2937;
+}
+
+.dark {
+  --color-bg-primary: #111827;
+  --color-text-primary: #e5e7eb;
+}
+
+.purple-dark {
+  --color-bg-primary: #3b0764; /* Deeper purple */
+  --color-text-primary: #f3e8ff; /* Lighter text for contrast */
+  --color-accent-purple: #a78bfa; /* Brighter purple accent */
+  --color-accent-blue: #60a5fa; /* Complementary blue accent */
+}
+
+.blue-light {
+  --color-bg-primary: #e0f2fe; /* Very light blue */
+  --color-text-primary: #1e3a8a; /* Dark blue text */
+  --color-accent-purple: #a78bfa; /* Consistent purple accent */
+  --color-accent-blue: #2563eb; /* Stronger blue accent */
+}
+
+/* Apply colors using CSS variables */
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}

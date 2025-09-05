@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, Clock, User, MapPin, Star, ChevronLeft, ChevronRight, CheckCircle, MessageCircle, Video, Phone } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext'; // Import useAuth
 
 const therapists = [
   {
@@ -73,6 +74,19 @@ export default function BookingPage() {
     urgency: 'low',
     additionalNotes: ''
   });
+  const [isBookingConfirmed, setIsBookingConfirmed] = useState(false); // New state for booking confirmation
+  const { user } = useAuth(); // Get authenticated user
+
+  // Pre-fill form data if user is logged in
+  React.useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        name: user.name || '',
+        email: user.email || '',
+      }));
+    }
+  }, [user]);
 
   const steps = [
     { title: 'Select Issues', description: 'What would you like to work on?' },
@@ -83,7 +97,13 @@ export default function BookingPage() {
     { title: 'Confirmation', description: 'Review and confirm booking' }
   ];
 
-  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, steps.length));
+  const nextStep = () => {
+    // Remove the premature call to handleConfirmBooking
+    // if (currentStep === steps.length - 1) {
+    //   handleConfirmBooking();
+    // }
+    setCurrentStep(prev => Math.min(prev + 1, steps.length));
+  };
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
 
   const toggleIssue = (issueId: string) => {
@@ -103,23 +123,67 @@ export default function BookingPage() {
     return slots;
   };
 
+  const handleConfirmBooking = async () => {
+    const selectedTherapistData = therapists.find(t => t.id === selectedTherapist);
+    const selectedSessionTypeData = sessionTypes.find(t => t.id === selectedSessionType);
+
+    const bookingDetails = {
+      therapistName: selectedTherapistData?.name,
+      sessionType: selectedSessionTypeData?.name,
+      date: selectedDate?.toLocaleDateString(),
+      time: selectedTime,
+      duration: selectedSessionTypeData?.duration,
+      price: selectedSessionTypeData?.price,
+      userName: formData.name,
+      userEmail: formData.email,
+      userPhone: formData.phone,
+      userIssues: selectedIssues,
+      previousTherapy: formData.previousTherapy,
+      currentMedication: formData.currentMedication,
+      urgency: formData.urgency,
+      additionalNotes: formData.additionalNotes,
+    };
+
+    try {
+      const response = await fetch('http://localhost:5000/confirm_booking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bookingDetails),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Booking confirmation response:', result);
+      setIsBookingConfirmed(true); // Set confirmation true on success
+    } catch (error) {
+      console.error('Error confirming booking:', error);
+      setIsBookingConfirmed(false); // Ensure false on error
+      // Optionally, show an error message to the user
+    }
+  };
+
   const renderStepIndicator = () => (
     <div className="mb-8">
       <div className="flex items-center justify-between mb-4">
         {steps.map((step, index) => (
           <div key={index} className="flex items-center">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
-              currentStep > index + 1
+              currentStep > index + 1 || (currentStep === index + 1 && isBookingConfirmed)
                 ? 'bg-green-500 text-white'
                 : currentStep === index + 1
                 ? 'bg-purple-600 text-white'
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-500'
             }`}>
-              {currentStep > index + 1 ? <CheckCircle className="w-5 h-5" /> : index + 1}
+              {currentStep > index + 1 || (currentStep === index + 1 && isBookingConfirmed) ? <CheckCircle className="w-5 h-5" /> : index + 1}
             </div>
             {index < steps.length - 1 && (
               <div className={`w-8 h-1 mx-2 ${
-                currentStep > index + 1 ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
+                currentStep > index + 1 || (currentStep === index + 1 && isBookingConfirmed) ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
               }`} />
             )}
           </div>
@@ -414,18 +478,34 @@ export default function BookingPage() {
     
     return (
       <div className="space-y-6">
-        <div className="bg-green-50 dark:bg-green-900/20 p-6 rounded-xl border border-green-200 dark:border-green-800">
-          <div className="flex items-center mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600 mr-3" />
-            <h3 className="text-2xl font-bold text-green-800 dark:text-green-300">
-              Booking Confirmed!
-            </h3>
+        {isBookingConfirmed && (
+          <div className="bg-green-50 dark:bg-green-900/20 p-6 rounded-xl border border-green-200 dark:border-green-800">
+            <div className="flex items-center mb-4">
+              <CheckCircle className="w-8 h-8 text-green-600 mr-3" />
+              <h3 className="text-2xl font-bold text-green-800 dark:text-green-300">
+                Booking Confirmed!
+              </h3>
+            </div>
+            <p className="text-green-700 dark:text-green-400">
+              Your therapy session has been successfully scheduled. You'll receive a confirmation email with session details and pre-session preparation materials.
+            </p>
           </div>
-          <p className="text-green-700 dark:text-green-400">
-            Your therapy session has been successfully scheduled. You'll receive a confirmation email with session details and pre-session preparation materials.
-          </p>
-        </div>
+        )}
         
+        {!isBookingConfirmed && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-xl border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center mb-4">
+              <MessageCircle className="w-8 h-8 text-blue-600 mr-3" />
+              <h3 className="text-2xl font-bold text-blue-800 dark:text-blue-300">
+                Review Your Booking
+              </h3>
+            </div>
+            <p className="text-blue-700 dark:text-blue-400">
+              Please review the details below before confirming your session.
+            </p>
+          </div>
+        )}
+
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
           <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Session Details
@@ -468,17 +548,19 @@ export default function BookingPage() {
           </div>
         </div>
         
-        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-          <h5 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">
-            What's Next?
-          </h5>
-          <ul className="space-y-1 text-blue-700 dark:text-blue-400 text-sm">
-            <li>• You'll receive a confirmation email within 5 minutes</li>
-            <li>• Your therapist will send preparation materials 24 hours before</li>
-            <li>• Join the session 5 minutes early using the link provided</li>
-            <li>• Need to reschedule? Contact us at least 24 hours in advance</li>
-          </ul>
-        </div>
+        {isBookingConfirmed && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+            <h5 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">
+              What's Next?
+            </h5>
+            <ul className="space-y-1 text-blue-700 dark:text-blue-400 text-sm">
+              <li>• You'll receive a confirmation email within 5 minutes</li>
+              <li>• Your therapist will send preparation materials 24 hours before</li>
+              <li>• Join the session 5 minutes early using the link provided</li>
+              <li>• Need to reschedule? Contact us at least 24 hours in advance</li>
+            </ul>
+          </div>
+        )}
       </div>
     );
   };
@@ -523,10 +605,10 @@ export default function BookingPage() {
               </button>
             ) : (
               <button
-                onClick={() => window.location.reload()}
+                onClick={handleConfirmBooking} // Call handleConfirmBooking when confirming the last step
                 className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
               >
-                Book Another Session
+                Confirm Booking
               </button>
             )}
           </div>
