@@ -7,6 +7,7 @@ import smtplib
 from email.mime.text import MIMEText
 import os
 from datetime import datetime # Import datetime
+import json
 
 # Firebase Admin SDK imports
 import firebase_admin
@@ -23,10 +24,30 @@ chatbot_instance = Chatbot()
 # For local development, place this file in the root of your project.
 # For production, consider more secure ways to handle credentials (e.g., environment variables, Google Cloud credentials).
 try:
-    cred = credentials.Certificate("serviceAccountKey.json")
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("Firebase Admin SDK initialized successfully.")
+    # Try to load from environment variable first
+    firebase_config_json = os.getenv('FIREBASE_ADMIN_SDK_CONFIG')
+
+    if firebase_config_json:
+        # Parse the JSON string from the environment variable
+        cred_dict = json.loads(firebase_config_json)
+        cred = credentials.Certificate(cred_dict)
+    else:
+        # Fallback for local development if 'serviceAccountKey.json' exists
+        # This block will be skipped on Render if the environment variable is set
+        try:
+            cred = credentials.Certificate("serviceAccountKey.json")
+        except FileNotFoundError:
+            print("serviceAccountKey.json not found, and FIREBASE_ADMIN_SDK_CONFIG env var is not set.")
+            print("Firebase Admin SDK will not be initialized.")
+            cred = None # Or handle this error appropriately
+
+    if cred:
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("Firebase Admin SDK initialized successfully.")
+    else:
+        db = None # Ensure db is None if not initialized
+        print("Firebase Admin SDK not initialized. Firestore operations will be unavailable.")
 except Exception as e:
     print(f"Error initializing Firebase Admin SDK: {e}")
     # Exit or handle the error appropriately if Firestore is critical
