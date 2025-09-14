@@ -79,7 +79,7 @@ def home():
 
 
 @app.route('/confirm_booking', methods=['POST'])
-async def confirm_booking():
+def confirm_booking():
     booking_details = request.json
     user_email = booking_details.get('userEmail')
 
