@@ -18,6 +18,8 @@ from firebase_admin import firestore
 CORS_ALLOWED_ORIGINS_STR = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173')
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',')
 
+print(f"CORS Allowed Origins configured: {CORS_ALLOWED_ORIGINS}")
+
 app = Flask(__name__)
 CORS(app, origins=CORS_ALLOWED_ORIGINS)
 chatbot_instance = Chatbot()
