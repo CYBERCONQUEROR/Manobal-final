@@ -68,7 +68,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             email: firebaseUser.email || '',
             profession: '',
             dateOfBirth: '',
-            photoURL: firebaseUser.photoURL || undefined,
+            photoURL: firebaseUser.photoURL || null,
             role: 'user', // Default role
           };
           await setDoc(userRef, userData, { merge: true });
@@ -82,10 +82,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           name: userData.name || firebaseUser.displayName || firebaseUser.email || 'User',
           email: userData.email || firebaseUser.email || '',
           role: userRole,
-          avatar: userData.photoURL || firebaseUser.photoURL || undefined, // Prioritize Firestore photoURL
+          avatar: userData.photoURL || firebaseUser.photoURL || null, // Prioritize Firestore photoURL
           profession: userData.profession || '',
           dateOfBirth: userData.dateOfBirth || '',
-          photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
+          photoURL: userData.photoURL || firebaseUser.photoURL || null,
         });
       } else {
         setUser(null);
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         email: email,
         profession: profession,
         dateOfBirth: dateOfBirth,
-        photoURL: undefined, // No photo on initial registration
+        photoURL: null, // No photo on initial registration, use null
         role: 'user',
       };
       await setDoc(userRef, userProfile, { merge: true });
@@ -166,7 +166,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     try {
       const userRef = doc(db, "users", user.id);
-      await updateDoc(userRef, profileUpdates);
+      
+      // Filter out undefined values before sending to Firestore
+      const filteredProfileUpdates = Object.fromEntries(
+        Object.entries(profileUpdates).filter(([, value]) => value !== undefined)
+      );
+      await updateDoc(userRef, filteredProfileUpdates);
 
       // Update the local user state
       setUser(prevUser => {
@@ -177,8 +182,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // If display name or photoURL are updated, also update Firebase Auth profile
       if (profileUpdates.name || profileUpdates.photoURL) {
         await updateProfile(auth.currentUser, {
-          displayName: profileUpdates.name,
-          photoURL: profileUpdates.photoURL,
+          displayName: profileUpdates.name || auth.currentUser.displayName, // Ensure a value is always passed
+          photoURL: profileUpdates.photoURL || auth.currentUser.photoURL,   // Ensure a value is always passed
         });
       }
 

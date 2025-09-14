@@ -14,9 +14,12 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 
+# Get allowed origins for CORS from environment variable or default to localhost
+CORS_ALLOWED_ORIGINS_STR = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173')
+CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',')
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=CORS_ALLOWED_ORIGINS)
 chatbot_instance = Chatbot()
 
 # Initialize Firebase Admin SDK

@@ -93,7 +93,7 @@ export default function ChatBot({ isOpen, onClose }: ChatBotProps) {
   };
 
   const handleSend = async (voiceInput?: string) => {
-    const messageToSend = voiceInput || input;
+    const messageToSend = String(voiceInput || input); // Ensure it's always a string
     if (!messageToSend.trim()) return;
 
     const userMessage: Message = {

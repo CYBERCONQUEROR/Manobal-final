@@ -47,7 +47,7 @@ function AuthGuard() {
   }
 
   if (!user) {
-    return <LoginPage />;
+    return <LoginPage onPageChange={handlePageChange} />;
   }
 
   return (
