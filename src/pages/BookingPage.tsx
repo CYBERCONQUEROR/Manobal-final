@@ -253,10 +253,71 @@ const issues = [
   { id: 'other', label: 'Other Concerns', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300' }
 ];
 
+const colleges = [
+  { id: 'uni_of_london', name: 'University of London' },
+  { id: 'oxford_uni', name: 'University of Oxford' },
+  { id: 'cambridge_uni', name: 'University of Cambridge' },
+  { id: 'manobal_college', name: 'Manobal College' },
+];
+
+const counsellors = [
+  {
+    id: 'c1',
+    name: 'Ms. Anya Sharma',
+    collegeId: 'uni_of_london',
+    specialty: 'Academic Stress',
+    rating: 4.7,
+    reviews: 65,
+    languages: ['English', 'Hindi'],
+    experience: '5 years',
+    avatar: 'https://images.pexels.com/photos/4101143/pexels-photo-4101143.jpeg?auto=compress&cs=tinysrgb&w=300',
+    bio: 'Focuses on student well-being, exam anxiety, and career guidance.',
+  },
+  {
+    id: 'c2',
+    name: 'Mr. Ben Carter',
+    collegeId: 'oxford_uni',
+    specialty: 'Time Management & Productivity',
+    rating: 4.5,
+    reviews: 40,
+    languages: ['English'],
+    experience: '7 years',
+    avatar: 'https://images.pexels.com/photos/3762804/pexels-photo-3762804.jpeg?auto=compress&cs=tinysrgb&w=300',
+    bio: 'Helps students develop effective study habits and overcome procrastination.',
+  },
+  {
+    id: 'c3',
+    name: 'Dr. Chloe Davis',
+    collegeId: 'cambridge_uni',
+    specialty: 'Relationship Issues',
+    rating: 4.9,
+    reviews: 90,
+    languages: ['English', 'French'],
+    experience: '10 years',
+    avatar: 'https://images.pexels.com/photos/3771089/pexels-photo-3771089.jpeg?auto=compress&cs=tinysrgb&w=300',
+    bio: 'Supports students in navigating friendships, family dynamics, and romantic relationships.',
+  },
+  {
+    id: 'c4',
+    name: 'Ms. Priya Singh',
+    collegeId: 'manobal_college',
+    specialty: 'Stress & Anxiety',
+    rating: 4.8,
+    reviews: 55,
+    languages: ['English', 'Hindi'],
+    experience: '6 years',
+    avatar: 'https://images.pexels.com/photos/3760235/pexels-photo-3760235.jpeg?auto=compress&cs=tinysrgb&w=300',
+    bio: 'Dedicated to helping students manage stress, anxiety, and maintain mental well-being.',
+  },
+];
+
 export default function BookingPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedIssues, setSelectedIssues] = useState<string[]>([]);
   const [selectedTherapist, setSelectedTherapist] = useState<string>('');
+  const [selectionType, setSelectionType] = useState<'counsellor' | 'therapist' | null>(null); // New state for selection type
+  const [selectedCollege, setSelectedCollege] = useState<string | null>(null); // New state for selected college
+  const [selectedCounsellor, setSelectedCounsellor] = useState<string | null>(null); // New state for selected counsellor
   const [selectedSessionType, setSelectedSessionType] = useState<string>('video');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
@@ -318,6 +379,9 @@ export default function BookingPage() {
 
   const handleConfirmBooking = async () => {
     const selectedTherapistData = therapists.find(t => t.id === selectedTherapist);
+    const selectedCounsellorData = counsellors.find(c => c.id === selectedCounsellor);
+    const selectedProfessional = selectionType === 'therapist' ? selectedTherapistData : selectedCounsellorData;
+    
     const selectedSessionTypeData = sessionTypes.find(t => t.id === selectedSessionType);
 
     // Ensure user is logged in before booking
@@ -327,9 +391,11 @@ export default function BookingPage() {
     }
 
     const bookingDetails = {
-      therapistId: selectedTherapistData?.id, // Add therapistId for rating
+      therapistId: selectionType === 'therapist' ? selectedProfessional?.id : undefined, // Add therapistId for rating
+      counsellorId: selectionType === 'counsellor' ? selectedProfessional?.id : undefined, // Add counsellorId for rating
       userId: user.id, // Add userId for rating
-      therapistName: selectedTherapistData?.name,
+      therapistName: selectionType === 'therapist' ? selectedProfessional?.name : undefined, // Add therapistName for rating
+      counsellorName: selectionType === 'counsellor' ? selectedProfessional?.name : undefined, // Add counsellorName for rating
       sessionType: selectedSessionTypeData?.name,
       date: selectedDate?.toLocaleDateString(),
       time: selectedTime,
@@ -432,6 +498,25 @@ export default function BookingPage() {
           </button>
         ))}
       </div>
+      {selectedIssues.length > 0 && !selectionType && (
+        <div className="mt-8 text-center">
+          <p className="text-gray-700 dark:text-gray-300 mb-4">Who would you like to connect with?</p>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={() => { setSelectionType('counsellor'); nextStep(); }}
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
+            >
+              Counsellor
+            </button>
+            <button
+              onClick={() => { setSelectionType('therapist'); nextStep(); }}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              Therapist
+            </button>
+          </div>
+        </div>
+      )}
       {selectedIssues.length === 0 && (
         <div className="text-center p-8 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
           <MessageCircle className="w-12 h-12 text-blue-500 mx-auto mb-4" />
@@ -443,66 +528,150 @@ export default function BookingPage() {
     </div>
   );
 
-  const renderStep2 = () => (
-    <div className="space-y-6">
-      <div className="grid gap-6">
-        {therapists.map(therapist => (
-          <div
-            key={therapist.id}
-            onClick={() => setSelectedTherapist(therapist.id)}
-            className={`p-6 rounded-xl border-2 cursor-pointer transition-all ${
-              selectedTherapist === therapist.id
-                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
+  const renderCounsellorSelection = () => {
+    const filteredCounsellors = selectedCollege ? counsellors.filter(c => c.collegeId === selectedCollege) : [];
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <label htmlFor="college-select" className="block text-lg font-medium text-gray-900 dark:text-white mb-2">
+            Select Your College
+          </label>
+          <select
+            id="college-select"
+            value={selectedCollege || ''}
+            onChange={(e) => setSelectedCollege(e.target.value)}
+            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           >
-            <div className="flex items-start space-x-4">
-              <img
-                src={therapist.avatar}
-                alt={therapist.name}
-                className="w-20 h-20 rounded-full object-cover"
-              />
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {therapist.name}
-                  </h3>
-                  <div className="flex items-center space-x-2">
-                    <div className="flex items-center">
-                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                      <span className="ml-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {therapist.rating} ({therapist.reviews})
+            <option value="" disabled>Choose your college</option>
+            {colleges.map(college => (
+              <option key={college.id} value={college.id}>{college.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedCollege && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Counsellors from {colleges.find(c => c.id === selectedCollege)?.name}
+            </h3>
+            {filteredCounsellors.length > 0 ? (
+              <div className="grid gap-6">
+                {filteredCounsellors.map(counsellor => (
+                  <div
+                    key={counsellor.id}
+                    onClick={() => setSelectedCounsellor(counsellor.id)}
+                    className={`p-6 rounded-xl border-2 cursor-pointer transition-all ${selectedCounsellor === counsellor.id ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}`}
+                  >
+                    <div className="flex items-start space-x-4">
+                      <img
+                        src={counsellor.avatar}
+                        alt={counsellor.name}
+                        className="w-20 h-20 rounded-full object-cover"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                            {counsellor.name}
+                          </h3>
+                          <div className="flex items-center space-x-2">
+                            <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                            <span className="ml-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+                              {counsellor.rating} ({counsellor.reviews})
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-purple-600 dark:text-purple-400 font-medium mb-2">
+                          {counsellor.specialty}
+                        </p>
+                        <p className="text-gray-600 dark:text-gray-400 mb-3">
+                          {counsellor.bio}
+                        </p>
+                        <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
+                          <span className="flex items-center">
+                            <User className="w-4 h-4 mr-1" />
+                            {counsellor.experience}
+                          </span>
+                          <span className="flex items-center">
+                            <MessageCircle className="w-4 h-4 mr-1" />
+                            {counsellor.languages.join(', ')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-600 dark:text-gray-400">No counsellors found for this college.</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderStep2 = () => {
+    if (selectionType === 'counsellor') {
+      return renderCounsellorSelection();
+    } else if (selectionType === 'therapist') {
+      return (
+        <div className="space-y-6">
+          <div className="grid gap-6">
+            {therapists.map(therapist => (
+              <div
+                key={therapist.id}
+                onClick={() => setSelectedTherapist(therapist.id)}
+                className={`p-6 rounded-xl border-2 cursor-pointer transition-all ${
+                  selectedTherapist === therapist.id
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <div className="flex items-start space-x-4">
+                  <img
+                    src={therapist.avatar}
+                    alt={therapist.name}
+                    className="w-20 h-20 rounded-full object-cover"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        {therapist.name}
+                      </h3>
+                      <div className="flex items-center space-x-2">
+                        <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                        <span className="ml-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {therapist.rating} ({therapist.reviews})
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-purple-600 dark:text-purple-400 font-medium mb-2">
+                      {therapist.specialty}
+                    </p>
+                    <p className="text-gray-600 dark:text-gray-400 mb-3">
+                      {therapist.bio}
+                    </p>
+                    <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
+                      <span className="flex items-center">
+                        <User className="w-4 h-4 mr-1" />
+                        {therapist.experience}
+                      </span>
+                      <span className="flex items-center">
+                        <MessageCircle className="w-4 h-4 mr-1" />
+                        {therapist.languages.join(', ')}
                       </span>
                     </div>
                   </div>
                 </div>
-                <p className="text-purple-600 dark:text-purple-400 font-medium mb-2">
-                  {therapist.specialty}
-                </p>
-                <p className="text-gray-600 dark:text-gray-400 mb-3">
-                  {therapist.bio}
-                </p>
-                <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
-                  <span className="flex items-center">
-                    <User className="w-4 h-4 mr-1" />
-                    {therapist.experience}
-                  </span>
-                  <span className="flex items-center">
-                    <MessageCircle className="w-4 h-4 mr-1" />
-                    {therapist.languages.join(', ')}
-                  </span>
-                  <span className="flex items-center">
-                    <Clock className="w-4 h-4 mr-1 text-green-500" />
-                    {therapist.availability}
-                  </span>
-                </div>
               </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
-    </div>
-  );
+        </div>
+      );
+    }
+    return null; // Should not happen if selectionType is properly set
+  };
 
   const renderStep3 = () => (
     <div className="space-y-6">
@@ -682,6 +851,9 @@ export default function BookingPage() {
 
   const renderStep6 = () => {
     const selectedTherapistData = therapists.find(t => t.id === selectedTherapist);
+    const selectedCounsellorData = counsellors.find(c => c.id === selectedCounsellor);
+    const selectedProfessional = selectionType === 'therapist' ? selectedTherapistData : selectedCounsellorData;
+    
     const selectedSessionTypeData = sessionTypes.find(t => t.id === selectedSessionType);
     
     return (
@@ -720,9 +892,9 @@ export default function BookingPage() {
           </h4>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Therapist:</span>
+              <span className="text-gray-600 dark:text-gray-400">{selectionType === 'therapist' ? 'Therapist:' : 'Counsellor:'}</span>
               <span className="font-medium text-gray-900 dark:text-white">
-                {selectedTherapistData?.name}
+                {selectedProfessional?.name}
               </span>
             </div>
             <div className="flex justify-between">
@@ -802,7 +974,8 @@ export default function BookingPage() {
                 onClick={nextStep}
                 disabled={
                   (currentStep === 1 && selectedIssues.length === 0) ||
-                  (currentStep === 2 && !selectedTherapist) ||
+                  (currentStep === 2 && selectionType === 'therapist' && !selectedTherapist) ||
+                  (currentStep === 2 && selectionType === 'counsellor' && (!selectedCollege || !selectedCounsellor)) ||
                   (currentStep === 4 && (!selectedDate || !selectedTime)) ||
                   (currentStep === 5 && (!formData.name || !formData.email || !formData.phone))
                 }
@@ -827,7 +1000,7 @@ export default function BookingPage() {
         <RatingModal
           bookingId={confirmedBookingId}
           therapistId={selectedTherapist!}
-          therapistName={therapists.find(t => t.id === selectedTherapist)?.name || ''}
+          therapistName={selectedTherapistData?.name || ''}
           userId={user.id}
           userDisplayName={user.name || ''}
           onClose={closeRatingModal}

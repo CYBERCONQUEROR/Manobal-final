@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Mail, Lock, User, Chrome, Shield, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import ManobalLogo from '../Assests/Manobal logo.png'; // Import the new logo
 
 interface LoginPageProps {
   onPageChange: (page: string) => void;
@@ -95,10 +96,10 @@ export default function LoginPage({ onPageChange }: LoginPageProps) {
         {/* Header */}
         <div className="text-center">
           <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Shield className="w-8 h-8 text-white" />
+            <img src={ManobalLogo} alt="ManoBal Logo" className="w-10 h-10" />
           </div>
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-            {isLogin ? 'Welcome Back' : 'Create Your Account'}
+            {isLogin ? 'ManoBal' : 'Create Your Account'}
           </h2>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
             {isLogin 
