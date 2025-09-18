@@ -17,6 +17,7 @@ load_dotenv() # Load environment variables from .env file
 app = Flask(__name__)
 CORS(app) # Enable CORS for all routes
 
+
 # YouTube Data API configuration lines removed as requested
 # YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 # YOUTUBE_API_SERVICE_NAME = "youtube"
@@ -29,6 +30,9 @@ class Chatbot:
     def __init__(self):
         API_KEY = os.getenv("COHERE_API_KEY") 
         self.co = cohere.Client(API_KEY)
+
+        # Initialize conversation state
+        self.conversation_state = {"state": "idle", "selected_college_id": None}
 
         # System role prompt with multilingual support
         self.system_prompt = """
@@ -49,6 +53,7 @@ class Chatbot:
         - Reply in the **same language** they used (example: if the student writes in Hindi, reply in Hindi).
         - Keep messages short, clear, and caring.
         """
+        
 
         # Crisis response message (only in English for clarity)
         self.crisis_message = (
@@ -81,16 +86,62 @@ class Chatbot:
         if any(word in user_input_lower for word in self.crisis_keywords):
             return self.crisis_message
 
+        # Handle counsellor/doctor selection flow
+        if self.conversation_state["state"] == "idle":
+            if "counsellor" in user_input_lower:
+                self.conversation_state["state"] = "selecting_counsellor_college"
+                return self._get_colleges_list_message()
+            elif "doctor" in user_input_lower:
+                self.conversation_state["state"] = "selecting_doctor"
+                return self._get_doctors_list_message()
+        elif self.conversation_state["state"] == "selecting_counsellor_college":
+            selected_college = next((c for c in DUMMY_COLLEGES if user_input_lower in c['name'].lower()), None)
+            if selected_college:
+                self.conversation_state["selected_college_id"] = selected_college['id']
+                self.conversation_state["state"] = "selecting_counsellor"
+                return self._get_counsellors_list_message(selected_college['id'])
+            else:
+                return "I couldn't find that college. Please try again or select from the list: " + self._get_colleges_list_message()
+        elif self.conversation_state["state"] == "selecting_counsellor":
+            # This step would ideally involve parsing user input for a specific counsellor ID or name
+            # For now, we'll just acknowledge and reset the state.
+            self.conversation_state = {"state": "idle", "selected_college_id": None}
+            return "Thank you for selecting a counsellor. I'll connect you with them shortly." # Placeholder
+        elif self.conversation_state["state"] == "selecting_doctor":
+            # This step would ideally involve parsing user input for a specific doctor ID or name
+            # For now, we'll just acknowledge and reset the state.
+            self.conversation_state = {"state": "idle", "selected_college_id": None}
+            return "Thank you for selecting a doctor. I'll connect you with them shortly." # Placeholder
+        
+        # Reset state if the conversation diverts
+        self.conversation_state = {"state": "idle", "selected_college_id": None}
+
         try:
             # Use Cohere chat endpoint with multilingual support
             response = self.co.chat(
-                model="command-r-plus",
+                model="command-r-35",
                 message=user_input,
                 preamble=self.system_prompt
             )
             return response.text.strip()
         except Exception as e:
             return f"⚠️ Sorry, something went wrong with the AI: {str(e)}"
+
+    def _get_colleges_list_message(self) -> str:
+        colleges_names = [college['name'] for college in DUMMY_COLLEGES]
+        return "Please select your college from the following: " + ", ".join(colleges_names) + ". You can type the full name or part of it."
+
+    def _get_counsellors_list_message(self, college_id: str) -> str:
+        filtered_counsellors = [c for c in DUMMY_COUNSELLORS if c['collegeId'] == college_id]
+        if not filtered_counsellors:
+            return "No counsellors found for your college. Please choose another college or type 'Counsellor' to restart."
+        
+        counsellor_names = [c['name'] + f" (Specialty: {c['specialty']})" for c in filtered_counsellors]
+        return f"Here are the counsellors available at {next(c['name'] for c in DUMMY_COLLEGES if c['id'] == college_id)}: " + "; ".join(counsellor_names) + ". Please type the name of the counsellor you'd like to choose."
+
+    def _get_doctors_list_message(self) -> str:
+        doctor_names = [d['name'] + f" (Specialty: {d['specialty']})" for d in DUMMY_DOCTORS]
+        return "Here are our available doctors: " + "; ".join(doctor_names) + ". Please type the name of the doctor you'd like to choose."
 
 def contains_forbidden_keywords(text: str, forbidden_keywords: list[str]) -> bool:
     text_lower = text.lower()
@@ -270,6 +321,19 @@ def submit_rating_comment():
         return jsonify({"error": "Comment contains inappropriate content."}), 400
     
     return jsonify({"message": "Comment is acceptable."}), 200
+
+@app.route('/get_colleges', methods=['GET'])
+def get_colleges():
+    return jsonify(DUMMY_COLLEGES)
+
+@app.route('/get_counsellors/<college_id>', methods=['GET'])
+def get_counsellors(college_id):
+    filtered_counsellors = [c for c in DUMMY_COUNSELLORS if c['collegeId'] == college_id]
+    return jsonify(filtered_counsellors)
+
+@app.route('/get_doctors', methods=['GET'])
+def get_doctors():
+    return jsonify(DUMMY_DOCTORS)
 
 # The chatbot instance should be created and used separately if this file is imported as a module.
 # For running the Flask app, we'll keep the __main__ block.
