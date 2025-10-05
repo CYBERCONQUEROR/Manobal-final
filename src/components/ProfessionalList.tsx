@@ -73,3 +73,24 @@ const ProfessionalList: React.FC<ProfessionalListProps> = ({ professionals, onSe
 };
 
 export default ProfessionalList;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

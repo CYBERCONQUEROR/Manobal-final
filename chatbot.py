@@ -11,7 +11,7 @@ import requests
 import PyPDF2
 import io
 from bs4 import BeautifulSoup # Import BeautifulSoup
-
+import google.generativeai as genai
 load_dotenv() # Load environment variables from .env file
 
 app = Flask(__name__)
@@ -28,8 +28,11 @@ CORS(app) # Enable CORS for all routes
 
 class Chatbot:
     def __init__(self):
-        API_KEY = os.getenv("COHERE_API_KEY") 
-        self.co = cohere.Client(API_KEY)
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        genai.configure(api_key=GEMINI_API_KEY)
+
+        # Initialize Gemini model
+        self.model = genai.GenerativeModel("gemini-2.5-flash-lite")  # or gemini-1.5-pro for better reasoning
 
         # Initialize conversation state
         self.conversation_state = {"state": "idle", "selected_college_id": None}
@@ -53,7 +56,6 @@ class Chatbot:
         - Reply in the **same language** they used (example: if the student writes in Hindi, reply in Hindi).
         - Keep messages short, clear, and caring.
         """
-        
 
         # Crisis response message (only in English for clarity)
         self.crisis_message = (
@@ -66,7 +68,7 @@ class Chatbot:
             "💙 Please reach out to someone who can support you immediately. Your life matters."
         )
 
-        # Crisis keywords for detection
+        # Crisis keywords
         self.crisis_keywords = [
             "suicide", "kill myself", "end my life", "self harm", "hurt myself",
             "i want to die", "i want to end it", "i can't go on",
@@ -103,27 +105,20 @@ class Chatbot:
             else:
                 return "I couldn't find that college. Please try again or select from the list: " + self._get_colleges_list_message()
         elif self.conversation_state["state"] == "selecting_counsellor":
-            # This step would ideally involve parsing user input for a specific counsellor ID or name
-            # For now, we'll just acknowledge and reset the state.
             self.conversation_state = {"state": "idle", "selected_college_id": None}
-            return "Thank you for selecting a counsellor. I'll connect you with them shortly." # Placeholder
+            return "Thank you for selecting a counsellor. I'll connect you with them shortly."
         elif self.conversation_state["state"] == "selecting_doctor":
-            # This step would ideally involve parsing user input for a specific doctor ID or name
-            # For now, we'll just acknowledge and reset the state.
             self.conversation_state = {"state": "idle", "selected_college_id": None}
-            return "Thank you for selecting a doctor. I'll connect you with them shortly." # Placeholder
-        
-        # Reset state if the conversation diverts
+            return "Thank you for selecting a doctor. I'll connect you with them shortly."
+
+        # Reset state if conversation diverts
         self.conversation_state = {"state": "idle", "selected_college_id": None}
 
         try:
-            # Use Cohere chat endpoint with multilingual support
-            response = self.co.chat(
-                model="command-r-35",
-                message=user_input,
-                preamble=self.system_prompt
-            )
-            return response.text.strip()
+            # 💬 Use Gemini instead of Cohere
+            prompt = f"{self.system_prompt}\n\nUser: {user_input}\nAssistant:"
+            response = self.model.generate_content(prompt)
+            return response.text.strip() if response.text else "⚠️ Sorry, I couldn't generate a response right now."
         except Exception as e:
             return f"⚠️ Sorry, something went wrong with the AI: {str(e)}"
 
@@ -135,13 +130,13 @@ class Chatbot:
         filtered_counsellors = [c for c in DUMMY_COUNSELLORS if c['collegeId'] == college_id]
         if not filtered_counsellors:
             return "No counsellors found for your college. Please choose another college or type 'Counsellor' to restart."
-        
         counsellor_names = [c['name'] + f" (Specialty: {c['specialty']})" for c in filtered_counsellors]
         return f"Here are the counsellors available at {next(c['name'] for c in DUMMY_COLLEGES if c['id'] == college_id)}: " + "; ".join(counsellor_names) + ". Please type the name of the counsellor you'd like to choose."
 
     def _get_doctors_list_message(self) -> str:
         doctor_names = [d['name'] + f" (Specialty: {d['specialty']})" for d in DUMMY_DOCTORS]
         return "Here are our available doctors: " + "; ".join(doctor_names) + ". Please type the name of the doctor you'd like to choose."
+
 
 def contains_forbidden_keywords(text: str, forbidden_keywords: list[str]) -> bool:
     text_lower = text.lower()

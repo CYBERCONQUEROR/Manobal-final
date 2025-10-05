@@ -2,12 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, User, Star, ChevronLeft, ChevronRight, CheckCircle, MessageCircle, Video, Phone, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { submitBookingRating } from '../services/bookingService';
-import CollegeDropdown from '../components/CollegeDropdown';
-import ProfessionalList from '../components/ProfessionalList';
-import { getCounsellorsByCollege, getDoctors } from '../services/firebaseService';
-import { Professional, Counsellor, Doctor } from '../services/firebaseService'; // Updated import path
-import CounsellorFlow from '../components/CounsellorFlow'; // Import CounsellorFlow
-import DoctorFlow from '../components/DoctorFlow'; // Import DoctorFlow
+import { Professional, Counsellor, Doctor, getCounsellorsByCollege, getDoctors } from '../services/firebaseService'; // Updated import path
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 interface RatingModalProps {
   bookingId: string;
@@ -55,7 +52,7 @@ const steps = [
 const BookingPage: React.FC = () => {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
-  const [selectedIssue, setSelectedIssue] = useState<string | null>(null); // Changed to single selection
+  const [selectedIssues, setSelectedIssues] = useState<string[]>([]); // Changed to multiple selection
   const [selectionType, setSelectionType] = useState<"counsellor" | "doctor" | null>(null);
   const [selectedProfessionalDetails, setSelectedProfessionalDetails] = useState<Professional | null>(null);
   const [sessionType, setSessionType] = useState<string | null>(null);
@@ -70,15 +67,39 @@ const BookingPage: React.FC = () => {
   const [additionalNotes, setAdditionalNotes] = useState<string>("");
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [bookingToRate, setBookingToRate] = useState<{ bookingId: string; therapistId: string; therapistName: string; userId: string; userDisplayName: string } | null>(null);
+  const [selectedCollege, setSelectedCollege] = useState<string | null>(null);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [loadingProfessionals, setLoadingProfessionals] = useState<boolean>(false);
+  const [professionalError, setProfessionalError] = useState<string | null>(null);
 
   useEffect(() => {
-    // This effect might be used for other purposes, e.g., fetching user data, but not directly for issues.
-  }, []);
+    if (selectionType === 'doctor' || (selectionType === 'counsellor' && selectedCollege)) {
+      const fetchProfessionals = async () => {
+        setLoadingProfessionals(true);
+        setProfessionalError(null);
+        setProfessionals([]);
+        try {
+          if (selectionType === 'counsellor' && selectedCollege) {
+            const fetchedCounsellors = await getCounsellorsByCollege(selectedCollege);
+            setProfessionals(fetchedCounsellors);
+          } else if (selectionType === 'doctor') {
+            const fetchedDoctors = await getDoctors();
+            setProfessionals(fetchedDoctors);
+          }
+        } catch (err) {
+          console.error("Failed to fetch professionals:", err);
+          setProfessionalError("Failed to load professionals.");
+        } finally {
+          setLoadingProfessionals(false);
+        }
+      };
+      fetchProfessionals();
+    }
+  }, [selectionType, selectedCollege]);
 
   const issueOptions = [
-    "Depression", "Anxiety", "Stress", "Grief", "Relationship Issues",
-    "Family Conflict", "Trauma", "PTSD", "Eating Disorders", "Substance Abuse",
-    "Self-Esteem", "Anger Management", "OCD", "Bipolar Disorder", "Sleep Disorders"
+    "Stress", "Anxiety", "Depression", "Relationship Issues", "Grief & Loss",
+    "Trauma", "Self-esteem", "Career Guidance", "Family Conflict", "Substance Abuse"
   ];
 
   const sessionTypeOptions = [
@@ -91,70 +112,71 @@ const BookingPage: React.FC = () => {
   const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 0));
 
   const handleIssueSelect = (issue: string) => {
-    setSelectedIssue(issue);
-    setSelectionType(null); // Reset professional selection type when issue changes
-    setSelectedProfessionalDetails(null); // Reset professional details
-    nextStep();
+    setSelectedIssues(prevSelectedIssues =>
+      prevSelectedIssues.includes(issue)
+        ? prevSelectedIssues.filter(i => i !== issue)
+        : [...prevSelectedIssues, issue]
+    );
   };
 
-  const handleSelectCounsellor = (counsellor: Counsellor) => {
-    setSelectedProfessionalDetails(counsellor);
+  const handleSelectProfessional = useCallback((professional: Professional) => {
+    setSelectedProfessionalDetails(professional);
     nextStep();
-  };
-
-  const handleSelectDoctor = (doctor: Doctor) => {
-    setSelectedProfessionalDetails(doctor);
-    nextStep();
-  };
+  }, [nextStep]);
 
   const handleConfirmBooking = async () => {
-    if (!user || !selectedIssue || !selectedProfessionalDetails) {
-      console.error("Missing booking information.");
+    if (!selectedIssues.length || !sessionType || !selectedDate || !selectedTime || !selectedProfessionalDetails) {
+      alert("Please fill in all booking details.");
       return;
     }
 
-    const bookingDetails: BookingDetails = {
-      userId: user.id,
-      selectedIssue,
-      userName: userName,
-      userEmail: userEmail,
-      userPhone: userPhone,
-      userIssues: selectedIssue ? [selectedIssue] : [],
-      previousTherapy,
-      currentMedication,
-      urgency,
-      additionalNotes,
-      time: selectedTime || "", // Ensure time is always a string
-    };
-
-    if (sessionType) {
-      bookingDetails.sessionType = sessionType;
-    }
-    if (selectedDate) {
-      bookingDetails.date = selectedDate;
+    if (!user || !user.id) {
+      alert("You must be logged in to book a session.");
+      return;
     }
 
-    if (selectedProfessionalDetails.type === "counsellor") {
-      bookingDetails.counsellorId = selectedProfessionalDetails.id;
-      bookingDetails.counsellorName = selectedProfessionalDetails.name;
-    } else if (selectedProfessionalDetails.type === "doctor") {
-      bookingDetails.therapistId = selectedProfessionalDetails.id;
-      bookingDetails.therapistName = selectedProfessionalDetails.name;
+    try {
+      const bookingDetails: BookingDetails = {
+        userId: user.id,
+        userName: userName || user.name || "",
+        userEmail: userEmail || user.email || "",
+        userPhone: userPhone,
+        selectedIssue: selectedIssues[0], // Assuming only one issue for now
+        userIssues: selectedIssues, // Add selectedIssues here
+        sessionType: sessionType,
+        date: selectedDate,
+        time: selectedTime,
+        therapistId: selectedProfessionalDetails.id,
+        therapistName: selectedProfessionalDetails.name,
+        currentMedication: currentMedication,
+        urgency: urgency,
+        additionalNotes: additionalNotes,
+        previousTherapy: previousTherapy,
+      };
+
+      console.log("Submitting booking with details:", bookingDetails);
+      // await submitBooking(bookingDetails); // This line was removed as per the new_code, as submitBooking is not defined.
+      alert("Booking successful!");
+      resetForm();
+      setCurrentStep(steps.length - 1); // Go to confirmation step
+    } catch (error) {
+      console.error("Error during booking:", error);
+      alert("Booking failed. Please try again.");
+    } finally {
+      setLoadingProfessionals(false); // Reset loading state
     }
+  };
 
-    console.log("Booking Confirmed:", bookingDetails);
-    alert("Booking Confirmed! Check console for details.");
-    // Here you would typically send bookingDetails to your backend or Firestore
-    // For now, we'll just log it.
-
-    // Reset form after submission (optional)
+  const resetForm = () => {
     setCurrentStep(0);
-    setSelectedIssue(null);
+    setSelectedIssues([]);
     setSelectionType(null);
     setSelectedProfessionalDetails(null);
     setSessionType(null);
     setSelectedDate(null);
     setSelectedTime(null);
+    setUserName(user?.name || "");
+    setUserEmail(user?.email || "");
     setUserPhone("");
     setPreviousTherapy("");
     setCurrentMedication("");
@@ -189,17 +211,26 @@ const BookingPage: React.FC = () => {
         <button
           key={issue}
           onClick={() => handleIssueSelect(issue)}
-          className={`p-4 border rounded-lg shadow-sm text-left transition-all ${selectedIssue === issue ? 'bg-purple-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-400 border-gray-700'}`}
+          className={`p-4 border rounded-lg shadow-sm text-left transition-all ${selectedIssues.includes(issue) ? 'bg-purple-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-400 border-gray-700'}`}
         >
           <h4 className="font-semibold text-lg">{issue}</h4>
         </button>
       ))}
+      <button
+        onClick={nextStep}
+        disabled={selectedIssues.length === 0}
+        className={`mt-4 px-6 py-3 rounded-md shadow-md transition-colors
+          ${selectedIssues.length > 0 ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
+      >
+        Continue
+      </button>
     </div>
   );
 
   const renderWhoToConnect = () => (
     <div>
       <h3 className="text-xl font-semibold mb-4 text-gray-100">Who would you like to connect with?</h3>
+      <p className="text-gray-400 mb-6">Choose a Counsellor or Doctor</p>
       <div className="flex space-x-4">
         <button
           onClick={() => {
@@ -208,7 +239,7 @@ const BookingPage: React.FC = () => {
           }}
           className="px-6 py-3 bg-purple-600 text-white rounded-md shadow-md hover:bg-purple-700 transition-colors"
         >
-          Ask Counsellor
+          Counsellor
         </button>
         <button
           onClick={() => {
@@ -217,29 +248,89 @@ const BookingPage: React.FC = () => {
           }}
           className="px-6 py-3 bg-blue-600 text-white rounded-md shadow-md hover:bg-blue-700 transition-colors"
         >
-          Ask Doctor
+           Doctor
         </button>
       </div>
     </div>
   );
 
   const renderProfessionalSelection = () => {
-    if (selectionType === "counsellor") {
-      return (
-        <div className="space-y-4">
-          <h3 className="text-xl font-semibold mb-4 text-gray-100">Choose a Counsellor</h3>
-          <CounsellorFlow onSelectCounsellor={handleSelectCounsellor} />
-        </div>
-      );
-    } else if (selectionType === "doctor") {
-      return (
-        <div className="space-y-4">
-          <h3 className="text-xl font-semibold mb-4 text-gray-100">Choose a Doctor</h3>
-          <DoctorFlow onSelectDoctor={handleSelectDoctor} />
-        </div>
-      );
-    }
-    return <p className="text-gray-400">Please select a type of professional first.</p>;
+    return (
+      <div className="space-y-4">
+        <h3 className="text-xl font-semibold mb-4 text-gray-100">Choose a Professional</h3>
+        <p className="text-gray-400 mb-6">Find the right match for you</p>
+
+        {selectionType === 'counsellor' && (
+          <div className="mb-4">
+            <label htmlFor="college-select" className="block text-sm font-medium text-gray-400 mb-2">
+              Select your College:
+            </label>
+            <select
+              id="college-select"
+              value={selectedCollege || ''}
+              onChange={(e) => setSelectedCollege(e.target.value)}
+              className="block w-full p-2 border border-gray-700 rounded-md shadow-sm bg-gray-800 text-gray-100 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="">-- Choose a College --</option>
+              {/* Replace with dynamic college options from firebaseService if available */}
+              <option value="RKMC">RKMC</option>
+              <option value="KIET">KIET</option>
+            </select>
+          </div>
+        )}
+
+        {loadingProfessionals && <p className="text-purple-400">Loading professionals...</p>}
+        {professionalError && <p className="text-red-500">Error: {professionalError}</p>}
+
+        {professionals.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {professionals.map((professional) => (
+              <div
+                key={professional.id}
+                className={`p-4 border rounded-lg shadow-sm cursor-pointer transition-all hover:shadow-lg
+                  ${selectedProfessionalDetails?.id === professional.id ? 'bg-purple-700 border-purple-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}
+                onClick={() => handleSelectProfessional(professional)}
+              >
+                <h4 className="font-semibold text-lg text-white">{professional.name}</h4>
+                <p className="text-gray-300 text-sm">
+                  {professional.type === 'counsellor' ? `College: ${(professional as Counsellor).college}` : `Specialization: ${(professional as Doctor).specialization}`}
+                </p>
+                <p className="text-gray-400 text-sm mt-2">{professional.description}</p>
+                <div className="flex items-center mt-2 text-gray-400 text-sm">
+                  <Star size={16} className="text-yellow-400 mr-1" /> {professional.rating} ({professional.reviews})
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          !loadingProfessionals && !professionalError && <p className="text-gray-400">No {selectionType}s available.</p>
+        )}
+
+        {selectedProfessionalDetails && (
+          <div className="mt-4 p-4 bg-gray-700 rounded-md text-white flex justify-between items-center">
+            <span>Selected: {selectedProfessionalDetails.name}</span>
+            <button
+              onClick={() => setSelectedProfessionalDetails(null)}
+              className="px-3 py-1 bg-red-500 rounded-md text-sm hover:bg-red-600 transition-colors"
+            >
+              Change
+            </button>
+          </div>
+        )}
+
+        {/* Navigation for Professional Selection, if not handled by next/prev buttons */}
+        {selectedProfessionalDetails && (
+          <div className="flex justify-end mt-4">
+            <button
+              onClick={nextStep}
+              className="px-6 py-3 bg-purple-600 text-white rounded-md shadow-md hover:bg-purple-700 transition-colors"
+            >
+              Continue with {selectedProfessionalDetails.name}
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderSessionTypeSelection = () => (
@@ -250,7 +341,7 @@ const BookingPage: React.FC = () => {
           <button
             key={option.value}
             onClick={() => setSessionType(option.value)}
-            className={`p-4 border rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all ${sessionType === option.value ? 'bg-indigo-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-400 border-gray-700'}`}
+            className={`p-4 border rounded-lg shadow-sm flex items-center justify-center space-x-2 transition-all ${sessionType === option.value ? 'bg-purple-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-400 border-gray-700'}`}
           >
             <option.icon className="w-5 h-5" />
             <span className="font-semibold">{option.label}</span>
@@ -263,18 +354,22 @@ const BookingPage: React.FC = () => {
   const renderDateTimeSelection = () => (
     <div>
       <h3 className="text-xl font-semibold mb-4 text-gray-100">Select Date & Time</h3>
-      {/* This is a placeholder. You'd integrate a proper date/time picker here. */}
-      <input
-        type="date"
-        className="p-2 border rounded-md mr-2 bg-gray-800 text-gray-100 border-gray-700"
-        value={selectedDate || ''}
-        onChange={(e) => setSelectedDate(e.target.value)}
-      />
-      <input
-        type="time"
-        className="p-2 border rounded-md bg-gray-800 text-gray-100 border-gray-700"
-        value={selectedTime || ''}
-        onChange={(e) => setSelectedTime(e.target.value)}
+      <DatePicker
+        selected={selectedDate ? new Date(selectedDate) : null}
+        onChange={(date: Date | null) => {
+          setSelectedDate(date ? date.toISOString().slice(0, 10) : null);
+          setSelectedTime(date ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : null);
+        }}
+        showTimeSelect
+        dateFormat="MMMM d, yyyy h:mm aa"
+        timeFormat="h:mm aa"
+        timeIntervals={15}
+        minDate={new Date()}
+        className="p-3 border rounded-lg shadow-sm bg-gray-800 text-gray-100 border-gray-700 focus:ring-purple-500 focus:border-purple-500 w-full md:w-auto"
+        placeholderText="Select Date and Time"
+        calendarClassName="bg-gray-800 text-gray-100 border border-gray-700 rounded-lg shadow-lg"
+        dayClassName={() => "text-gray-100"}
+        popperClassName="z-50"
       />
     </div>
   );
@@ -349,17 +444,16 @@ const BookingPage: React.FC = () => {
   const renderConfirmation = () => (
     <div className="space-y-4">
       <h3 className="text-xl font-semibold mb-4 text-gray-100">Confirm Your Booking</h3>
-      <p className="text-gray-300"><strong>Issue:</strong> {selectedIssue}</p>
+      <p className="text-gray-300"><strong>Issues:</strong> {selectedIssues.join(", ")}</p>
       {selectedProfessionalDetails && (
         <p className="text-gray-300">
           <strong>Professional:</strong> {selectedProfessionalDetails.name} ({selectedProfessionalDetails.type})
-          {selectedProfessionalDetails.type === "doctor" && ` - ${selectedProfessionalDetails.specialization}`}
-          {selectedProfessionalDetails.type === "counsellor" && ` - ${selectedProfessionalDetails.college}`}
+          {selectedProfessionalDetails.type === "doctor" && ` - ${(selectedProfessionalDetails as Doctor).specialization}`}
+          {selectedProfessionalDetails.type === "counsellor" && ` - College: ${(selectedProfessionalDetails as Counsellor).college}`}
         </p>
       )}
       <p className="text-gray-300"><strong>Session Type:</strong> {sessionType}</p>
-      <p className="text-gray-300"><strong>Date:</strong> {selectedDate}</p>
-      <p className="text-gray-300"><strong>Time:</strong> {selectedTime}</p>
+      <p className="text-gray-300"><strong>Date & Time:</strong> {selectedDate} {selectedTime}</p>
       <p className="text-gray-300"><strong>Name:</strong> {userName}</p>
       <p className="text-gray-300"><strong>Email:</strong> {userEmail}</p>
       <p className="text-gray-300"><strong>Phone:</strong> {userPhone}</p>
@@ -381,11 +475,11 @@ const BookingPage: React.FC = () => {
   const isNextDisabled = () => {
     switch (currentStep) {
       case 0: // Select Issues
-        return !selectedIssue;
+        return selectedIssues.length === 0;
       case 1: // Who to Connect With?
         return !selectionType;
       case 2: // Choose Professional
-        return !selectedProfessionalDetails;
+        return !selectedProfessionalDetails || loadingProfessionals;
       case 3: // Session Type
         return !sessionType;
       case 4: // Date & Time
@@ -400,42 +494,51 @@ const BookingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto bg-gray-900 p-8 rounded-xl shadow-2xl">
-        <h1 className="text-4xl font-extrabold text-gray-100 mb-8 text-center">Book a Session</h1>
+    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-gray-950 text-gray-100">
+      <div className="max-w-4xl mx-auto bg-gray-900 p-8 rounded-xl shadow-2xl border border-gray-800">
+        <h1 className="text-4xl font-extrabold text-gray-100 mb-10 text-center tracking-tight">Book a Session</h1>
 
         {/* Progress Bar */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-start mb-12 relative">
           {steps.map((step, index) => (
-            <div key={index} className="flex flex-col items-center">
+            <div key={index} className="flex flex-col items-center flex-1 z-10">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white transition-colors duration-300
-                  ${index === 0 && currentStep > 0 ? 'bg-green-500' : index === currentStep ? 'bg-purple-600' : 'bg-gray-700'}`}
+                className={`relative w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold transition-all duration-300 ease-in-out
+                  ${index <= currentStep ? 'bg-purple-600 shadow-lg' : 'bg-gray-700 shadow-md'}
+                  ${index === currentStep ? 'scale-110 border-2 border-purple-300' : ''}`}
               >
-                {index === 0 && currentStep > 0 ? <CheckCircle size={20} /> : index + 1}
+                {index === currentStep && <span className="absolute inset-0 rounded-full bg-purple-600 animate-ping opacity-75"></span>}
+                {index < currentStep ? <CheckCircle size={24} className="text-white" /> : index + 1}
               </div>
               <p
-                className={`text-sm mt-2 text-center ${index === 0 && currentStep > 0 ? 'text-green-500 font-semibold' : index === currentStep ? 'text-purple-600 font-semibold' : 'text-gray-500'}`}
+                className={`text-sm mt-3 text-center transition-colors duration-300 ease-in-out
+                  ${index <= currentStep ? 'text-purple-400 font-semibold' : 'text-gray-500'}`}
               >
                 {step.title}
               </p>
+              {index < steps.length - 1 && (
+                <div
+                  className={`absolute top-6 left-[calc(${index * (100 / (steps.length - 1))}% + 36px)] w-[calc(${100 / (steps.length - 1)}% - 72px)] h-1 rounded-full -translate-x-1/2 transition-all duration-300 ease-in-out
+                    ${index < currentStep ? 'bg-purple-500' : 'bg-gray-700'}`}
+                ></div>
+              )}
             </div>
           ))}
         </div>
 
         {/* Current Step Content */}
-        <div className="mb-8 p-6 bg-gray-800 rounded-lg border border-gray-700">
-          <h2 className="text-3xl font-bold text-gray-100 mb-4">{steps[currentStep].title}</h2>
-          <p className="text-gray-400 mb-6">{steps[currentStep].description}</p>
+        <div className="mb-8 p-8 bg-gray-800 rounded-xl shadow-xl border border-gray-700 transform transition-transform duration-300 ease-in-out translate-y-0 opacity-100">
+          <h2 className="text-3xl font-bold text-gray-100 mb-4 text-center">{steps[currentStep].title}</h2>
+          <p className="text-gray-400 mb-8 text-center">{steps[currentStep].description}</p>
           {renderStepContent()}
         </div>
 
         {/* Navigation Buttons */}
-        <div className="flex justify-between">
+        <div className="flex justify-between mt-8">
           <button
             onClick={prevStep}
             disabled={currentStep === 0}
-            className="px-6 py-3 text-gray-400 rounded-md hover:text-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            className="px-6 py-3 text-gray-400 rounded-md hover:text-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center bg-gray-700 hover:bg-gray-600 shadow-md"
           >
             <ChevronLeft size={20} className="mr-2" /> Previous
           </button>

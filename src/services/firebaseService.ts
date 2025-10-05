@@ -1,80 +1,70 @@
 import { db } from "../firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 
-// --- Interfaces for Firestore Documents ---
-
+// --- Interfaces ---
 export interface College {
-  id: string; // Document ID for the college
-  name: string;
+  id: string;
+  college: string; // Firestore field is "college"
 }
 
 export interface Counsellor {
-  id: string; // Document ID for the counsellor
+  id: string;
   name: string;
   college: string;
   rating: number;
-  type: "counsellor";
+  type: string;
 }
+
 
 export interface Doctor {
   id: string; // Document ID for the doctor
   name: string;
   specialization: string;
   rating: number;
-  type: "doctor";
+  type: string;
 }
 
-// A union type for both counsellors and doctors for generic lists
-export type Professional = Counsellor | Doctor;
-
-
-// --- Firestore Service Functions ---
-
-/**
- * Fetches all colleges from the "colleges" collection.
- * @returns A promise that resolves to an array of College objects.
- */
+// --- Get Colleges ---
 export const getColleges = async (): Promise<College[]> => {
   try {
     const q = query(collection(db, "college"));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      name: doc.data().name as string,
-    }));
+
+    const colleges = querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      console.log("College doc:", doc.id, data);
+      return {
+        id: doc.id,
+        college: data.college as string, // 👈 store actual string name
+      };
+    });
+
+    console.log("Fetched colleges:", colleges);
+    return colleges;
   } catch (error) {
     console.error("Error fetching colleges:", error);
     throw error;
   }
 };
 
-/**
- * Fetches counsellors from the "counsellors" collection, filtered by college and sorted by rating.
- * @param collegeName The name of the college to filter by.
- * @returns A promise that resolves to an array of Counsellor objects.
- */
-export const getCounsellorsByCollege = async (collegeName: string): Promise<Counsellor[]> => {
-  try {
-    const q = query(
-      collection(db, "counsellors"),
-      where("college", "==", collegeName),
-      orderBy("rating", "desc"),
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...(doc.data() as Omit<Counsellor, "id">), // Cast to Omit<Counsellor, "id"> to allow Firestore data to be spread
-    }));
-  } catch (error) {
-    console.error(`Error fetching counsellors for college ${collegeName}:`, error);
-    throw error;
-  }
+
+export const getCounsellorsByCollege = async (
+  collegeName: string
+): Promise<Counsellor[]> => {
+  const q = query(
+    collection(db, "counsellors"),
+    where("college", "==", collegeName) // collegeName is 'RKGIT' or 'KIET'
+  );
+
+  const querySnapshot = await getDocs(q);
+  if (querySnapshot.empty) return [];
+
+  return querySnapshot.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<Counsellor, "id">) }))
+    .sort((a, b) => b.rating - a.rating);
 };
 
-/**
- * Fetches all doctors from the "doctors" collection, sorted by rating.
- * @returns A promise that resolves to an array of Doctor objects.
- */
+
 export const getDoctors = async (): Promise<Doctor[]> => {
   try {
     const q = query(
@@ -91,3 +81,22 @@ export const getDoctors = async (): Promise<Doctor[]> => {
     throw error;
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

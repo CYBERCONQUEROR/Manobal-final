@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react({ fastRefresh: false })],
   resolve: {
     alias: {
       // Keep only this alias if it's generally needed, otherwise remove
@@ -12,7 +12,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Removing include as we'll handle this in build.rollupOptions
-    exclude: ['lucide-react'],
+    exclude: ['lucide-react', 'react-datepicker'],
   },
   build: {
     rollupOptions: {
