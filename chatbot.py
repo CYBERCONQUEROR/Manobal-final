@@ -203,6 +203,13 @@ def contains_forbidden_keywords(text: str, forbidden_keywords: list[str]) -> boo
 #     except Exception as e:
 #         return jsonify({"error": str(e)}), 500
 
+@app.route("/check-key")
+def check_key():
+    import os
+    key = os.getenv("GEMINI_API_KEY")
+    return {"key_loaded": bool(key), "first_chars": key[:5] if key else None}
+
+
 @app.route('/fetch_pdf_metadata', methods=['POST'])
 def fetch_pdf_metadata():
     data = request.get_json()
